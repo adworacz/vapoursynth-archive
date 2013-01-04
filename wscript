@@ -119,7 +119,10 @@ def configure(conf):
     conf.load('compiler_c')
     conf.load('compiler_cxx')
     conf.load('qt4')
-    conf.load('cuda')
+
+    if conf.options.cuda == 'true':
+        conf.load('cuda')
+
 
     if conf.options.cuda == 'true':
         conf.load('cuda')
