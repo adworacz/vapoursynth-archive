@@ -132,7 +132,6 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         // }
 
         invertWithCuda(src, dst, fi, vsapi);
-
         // Release the source frame
         vsapi->freeFrame(src);
 
@@ -143,7 +142,6 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
 
     return 0;
 }
-
 
 // Free all allocated data on filter destruction
 static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
