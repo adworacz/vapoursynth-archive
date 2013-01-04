@@ -109,6 +109,7 @@ def options(opt):
     opt.add_option('--avisynth', action = 'store', default = 'true', help = 'build Avisynth compatibility layer (true/false)')
     opt.add_option('--docs', action = 'store', default = 'false', help = 'build the documentation (true/false)')
     opt.add_option('--examples', action = 'store', default = 'false', help = 'install SDK examples (true/false)')
+    opt.add_option('--cuda', action = 'store', default = 'true', help = 'build with CUDA enhancments (true/false)')
 
 def configure(conf):
     def add_options(flags, options):
@@ -118,7 +119,10 @@ def configure(conf):
     conf.load('compiler_c')
     conf.load('compiler_cxx')
     conf.load('qt4')
-    conf.load('cuda')
+
+    if conf.options.cuda == 'true':
+        conf.load('cuda')
+
 
     if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
         # Load Yasm explicitly, then the Nasm module which
@@ -241,6 +245,7 @@ def configure(conf):
     check_feature('avisynth', 'Avisynth compatibility')
     check_feature('docs', 'documentation')
     check_feature('examples', 'SDK examples')
+    check_feature('cuda', 'CUDA support')
 
     conf.define('PATH_PREFIX', conf.env.PREFIX)
     conf.msg("Setting PREFIX to", conf.env.PREFIX)
