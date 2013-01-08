@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include "VapourSynth.h"
 #include "VSHelper.h"
+#include <cuda.h>
 
 typedef struct {
     VSNodeRef *node;
@@ -106,7 +107,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // In this first version we only want to handle 8bit integer formats. Note that
     // vi->format can be 0 if the input clip can change format midstream.
     if (!isConstantFormat(d.vi) || d.vi->format->sampleType != stInteger || d.vi->format->bitsPerSample != 8) {
-        vsapi->setError(out, "Invert: only constant format 8bit integer input supported");
+        vsapi->setError(out, "cuInvert: only constant format 8bit integer input supported");
         vsapi->freeNode(d.node);
         return;
     }
@@ -123,7 +124,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     // Let's pretend the only allowed values are 1 or 0...
     if (d.enabled < 0 || d.enabled > 1) {
-        vsapi->setError(out, "Invert: enabled must be 0 or 1");
+        vsapi->setError(out, "cuInvert: enabled must be 0 or 1");
         vsapi->freeNode(d.node);
         return;
     }
@@ -147,7 +148,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
     // prefetch (such as a cache filter).
     // If your filter is really fast (such as a filter that only resorts frames) you should set the
     // nfNoCache flag to make the caching work smoother.
-    vsapi->createFilter(in, out, "Invert", invertInit, invertGetFrame, invertFree, fmParallel, 0, data, core);
+    vsapi->createFilter(in, out, "cuInvert", invertInit, invertGetFrame, invertFree, fmParallel, 0, data, core);
     return;
 }
 
@@ -178,6 +179,6 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 // or not empty arrays are accepted and link which will not be explained here.
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    configFunc("com.example.invert", "invert", "VapourSynth Invert Example", VAPOURSYNTH_API_VERSION, 1, plugin);
+    configFunc("com.example.invert", "cuinvert", "VapourSynth Invert Example", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Filter", "clip:clip;enabled:int:opt;", invertCreate, 0, plugin);
 }

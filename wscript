@@ -95,7 +95,6 @@ def options(opt):
     opt.load('compiler_c')
     opt.load('compiler_cxx')
     opt.load('qt4')
-    opt.load('cuda')
 
     opt.add_option('--libdir', action = 'store', default = '${PREFIX}/lib', help = 'library installation directory')
     opt.add_option('--plugindir', action = 'store', default = '${LIBDIR}/vapoursynth', help = 'plugin installation directory')
@@ -290,6 +289,7 @@ def build(bld):
         for path in paths:
             srcpaths += [os.path.join(path, '*.c'),
                          os.path.join(path, '*.cpp'),
+                         os.path.join(path, '*.cu'),
                          os.path.join(path, '*.asm')]
 
         return srcpaths
@@ -338,6 +338,13 @@ def build(bld):
                 source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'assvapour')])),
                 target = 'assvapour',
                 install_path = '${PLUGINDIR}')
+
+        bld(features = 'c cxxshlib',
+            includes = 'include',
+            use = ['CUDA', 'CUDART'],
+            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'cuinvert')])),
+            target = 'cuinvert',
+            install_path = '${PLUGINDIR}')
 
     if bld.env.CYTHON == 'true':
         bld(features = 'preproc',
