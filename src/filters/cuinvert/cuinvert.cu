@@ -131,7 +131,7 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 
     // I usually keep the filter data struct on the stack and don't allocate it
     // until all the input validation is done.
-    data = malloc(sizeof(d));
+    data = (InvertData *)malloc(sizeof(d));
     *data = d;
 
     // Creates a new filter and returns a reference to it. Always pass on the in and out
