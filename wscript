@@ -282,6 +282,28 @@ def configure(conf):
 
     conf.env.LIBS = libs.strip()
 
+    def convert_cuda_cxx_options():
+        """ This function is necessary because CUDA's nvcc compiler does not
+        understand the 'fPIC' option, and requires a special secondary flag,
+        '-Xcompiler', in order to successfully pass 'fPIC' to the C/C++ compiler.
+
+        We can't simply change the CXXFLAGS, as -Xcompiler is an invalid option for GCC,
+        so we simply copy over all options, modifying the 'fPIC' option as we go."""
+
+        unsafe_options = conf.env['CXXFLAGS']
+        safe_options = []
+
+        for option in unsafe_options:
+            if option == '-fPIC':
+                safe_options.extend(['-Xcompiler', '-fPIC'])
+            else:
+                safe_options.append(option)
+
+        add_options(['NVCC_CXXFLAGS'], safe_options)
+
+    convert_cuda_cxx_options()
+
+
 def build(bld):
     def search_paths(paths):
         srcpaths = []
@@ -339,7 +361,7 @@ def build(bld):
                 target = 'assvapour',
                 install_path = '${PLUGINDIR}')
 
-        bld(features = 'c cxxshlib',
+        bld(features = 'cxx cxxshlib',
             includes = 'include',
             use = ['CUDA', 'CUDART'],
             source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'cuinvert')])),
