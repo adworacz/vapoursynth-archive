@@ -95,7 +95,6 @@ def options(opt):
     opt.load('compiler_c')
     opt.load('compiler_cxx')
     opt.load('qt4')
-    opt.load('cuda')
 
     opt.add_option('--libdir', action = 'store', default = '${PREFIX}/lib', help = 'library installation directory')
     opt.add_option('--plugindir', action = 'store', default = '${LIBDIR}/vapoursynth', help = 'plugin installation directory')
