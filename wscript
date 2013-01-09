@@ -306,7 +306,6 @@ def configure(conf):
 
         if xcompiler_options:
             safe_options.extend(['-Xcompiler', ','.join(xcompiler_options)])
-
        add_options(['NVCC_CXXFLAGS'], safe_options)
 
     convert_cuda_cxx_options()
