@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include "VapourSynth.h"
 #include "VSHelper.h"
-#include <cuda.h>
+#include "VSCuda.h"
 
 typedef struct {
     VSNodeRef *node;
