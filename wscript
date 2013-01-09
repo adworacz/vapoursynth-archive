@@ -284,7 +284,7 @@ def configure(conf):
 
     def convert_cuda_cxx_options():
         """ This function is necessary because CUDA's nvcc compiler does not
-        understand the 'fPIC' option, and requires a special secondary flag,
+        understand certain options such as 'fPIC', and requires a special secondary flag,
         '-Xcompiler', in order to successfully pass 'fPIC' to the C/C++ compiler.
 
         We can't simply change the CXXFLAGS, as -Xcompiler is an invalid option for GCC,
@@ -292,17 +292,20 @@ def configure(conf):
 
         unsafe_options = conf.env['CXXFLAGS']
         safe_options = []
+        xcompiler_options = []
 
         for option in unsafe_options:
-            if option == '-fPIC':
-                safe_options.extend(['-Xcompiler', '-fPIC'])
+            if option in ['-fPIC', '-ggdb', '-ftrapv']:
+                xcompiler_options.append(option)
             else:
                 safe_options.append(option)
+
+        if xcompiler_options:
+            safe_options.extend(['-Xcompiler', ','.join(xcompiler_options)])
 
         add_options(['NVCC_CXXFLAGS'], safe_options)
 
     convert_cuda_cxx_options()
-
 
 def build(bld):
     def search_paths(paths):
