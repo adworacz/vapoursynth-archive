@@ -5,6 +5,15 @@
 #include <stdlib.h>
 #include <cuda.h>
 
+//GPU Specific Defines.
+//////////////////////////////////////////////////////////////////
+//Maps to a single instruction on G8x / G9x / G10x
+#define IMAD(a, b, c) ( mul24((a), (b)) + (c) )
+
+//////////////////////////////////////////////////////////////////
+
+
+
 //Some usefull CUDA error checking functions.
 #define CHECKCUDA(err)  __checkCudaErrors (err, __FILE__, __LINE__)
 
