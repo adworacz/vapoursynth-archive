@@ -143,6 +143,14 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
     return 0;
 }
 
+_global_ invertKernel(uint8_t *data, int width, int height) {
+    const int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
+    const int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+
+    if (ix > width || iy > height)
+        return;
+}
+
 // Free all allocated data on filter destruction
 static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *)instanceData;
