@@ -8,8 +8,14 @@
 //GPU Specific Defines.
 //////////////////////////////////////////////////////////////////
 //Maps to a single instruction on G8x / G9x / G10x
-#define IMAD(a, b, c) ( mul24((a), (b)) + (c) )
 
+#if __CUDA_ARCH__ <= 200
+   //For CC < 2.0
+   #define IMAD(a, b, c) ( mul24((a), (b)) + (c) )
+#else
+   //For CC >= 2.0
+  #define IMAD(a, b, c) ( mulhi((a), (b)) + (c) )
+#endif
 //////////////////////////////////////////////////////////////////
 
 
