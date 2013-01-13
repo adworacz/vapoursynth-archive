@@ -151,6 +151,38 @@ _global_ invertKernel(uint8_t *data, int width, int height) {
         return;
 }
 
+static void invertWithCuda(VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi, const VSAPI *vsapi){
+    cudaPitchedPtr d_srcp;
+    cudaPitchedPtr d_dstp;
+
+    int plane;
+    for (plane = 0; plane < fi->numPlanes; plane++) {
+        int h = vsapi->getFrameHeight(src, plane);
+        int w = vsapi->getFrameWidth(src, plane);
+
+        int src_stride = vsapi->getStride(src, plane);
+        int dst_stride = vsapi->getStride(dst, plane);
+
+        if (plane > 0)
+            h = h >> fi->subSamplingH; //Account for subsampling in non-luma planes
+
+        //Allocate GPU memory for src frame and dst frame, then ship over src data.
+        CHECKCUDA(cudaMalloc3D(&d_srcp, make_cudaExtent(w * fi->bytesPerSample, h, 1)));
+        CHECKCUDA(cudaMalloc3D(&d_dstp, make_cudaExtent(w * fi->bytesPerSample, h, 1)));
+
+        CHECKCUDA(cudaMemcpy2D(d_srcp.ptr, d_srcp.pitch, src, src_stride, w * fi->bytesPerSample, h, cudaMemcpyHostToDevice));
+
+        //Do processing.
+        // dim3 threads(16, 16);
+        // dim3 grid(w / threads.x, h / threads.y);
+
+
+        //Free up GPU memory.
+        CHECKCUDA(cudaFree(d_srcp.ptr));
+        CHECKCUDA(cudaFree(d_dstp.ptr));
+    }
+}
+
 // Free all allocated data on filter destruction
 static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *)instanceData;
