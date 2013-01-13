@@ -86,23 +86,36 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
     return 0;
 }
 
-_global_ invertKernel(uint8_t *data, int width, int height) {
+static __global__ void invertKernel(uint8_t *d_srcdata, uint8_t *d_dstdata, int width, int height) {
     const int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
 
     if (ix > width || iy > height)
         return;
+
+    d_dstdata[width * iy + ix] = ~d_srcdata[width * iy + ix];
 }
 
 static void invertWithCuda(VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi, const VSAPI *vsapi){
     cudaPitchedPtr d_srcp;
     cudaPitchedPtr d_dstp;
 
+
+    int deviceID = 0;
+    cudaDeviceProp deviceProp;
+    CHECKCUDA(cudaGetDeviceProperties(&deviceProp, deviceID));
+
+    //CUDA Compute Capability < 2.0 only supports a maximum of 512 threads,
+    //while CUDA Compute Capability >= 2.0 supports 1024 threads.
+    int blockSize = (deviceProp.major < 2) ? 16 : 32;
+
     int plane;
     for (plane = 0; plane < fi->numPlanes; plane++) {
         int h = vsapi->getFrameHeight(src, plane);
         int w = vsapi->getFrameWidth(src, plane);
 
+        const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+        uint8_t *dstp = vsapi->getWritePtr(dst, plane);
         int src_stride = vsapi->getStride(src, plane);
         int dst_stride = vsapi->getStride(dst, plane);
 
@@ -113,12 +126,13 @@ static void invertWithCuda(VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi,
         CHECKCUDA(cudaMalloc3D(&d_srcp, make_cudaExtent(w * fi->bytesPerSample, h, 1)));
         CHECKCUDA(cudaMalloc3D(&d_dstp, make_cudaExtent(w * fi->bytesPerSample, h, 1)));
 
-        CHECKCUDA(cudaMemcpy2D(d_srcp.ptr, d_srcp.pitch, src, src_stride, w * fi->bytesPerSample, h, cudaMemcpyHostToDevice));
+        CHECKCUDA(cudaMemcpy2D(d_srcp.ptr, d_srcp.pitch, srcp, src_stride, w * fi->bytesPerSample, h, cudaMemcpyHostToDevice));
 
         //Do processing.
-        // dim3 threads(16, 16);
-        // dim3 grid(w / threads.x, h / threads.y);
+        dim3 threads(blockSize, blockSize);
+        dim3 grid(ceil(w / threads.x), ceil(h / threads.y));
 
+        invertKernel<<<grid, threads>>>((uint8_t *)d_srcp.ptr, (uint8_t *)d_dstp.ptr, w, h);
 
         //Free up GPU memory.
         CHECKCUDA(cudaFree(d_srcp.ptr));
