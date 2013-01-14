@@ -86,7 +86,7 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
     return 0;
 }
 
-static __global__ void invertKernel(uint8_t *d_srcdata, uint8_t *d_dstdata, int width, int height) {
+static __global__ void invertKernel(uint8_t * __restrict__ d_srcdata, uint8_t * __restrict__ d_dstdata, int width, int height) {
     const int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
 
