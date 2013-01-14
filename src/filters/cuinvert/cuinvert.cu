@@ -191,6 +191,8 @@ static void invertWithCuda(VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi,
 
         invertKernel<<<grid, threads>>>((uint8_t *)d_srcp.ptr, (uint8_t *)d_dstp.ptr, w, h);
 
+        CHECKCUDA(cudaMemcpy2D(dstp, dst_stride, d_dstp.ptr, d_dstp.pitch, w * fi->bytesPerSample, h, cudaMemcpyDeviceToHost));
+
         //Free up GPU memory.
         CHECKCUDA(cudaFree(d_srcp.ptr));
         CHECKCUDA(cudaFree(d_dstp.ptr));
