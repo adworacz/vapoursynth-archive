@@ -134,6 +134,8 @@ static void invertWithCuda(VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi,
 
         invertKernel<<<grid, threads>>>((uint8_t *)d_srcp.ptr, (uint8_t *)d_dstp.ptr, w, h);
 
+        CHECKCUDA(cudaMemcpy2D(dstp, dst_stride, d_dstp.ptr, d_dstp.pitch, w * fi->bytesPerSample, h, cudaMemcpyDeviceToHost));
+
         //Free up GPU memory.
         CHECKCUDA(cudaFree(d_srcp.ptr));
         CHECKCUDA(cudaFree(d_dstp.ptr));
@@ -233,6 +235,6 @@ static void VS_CC invertCreate(const VSMap *in, VSMap *out, void *userData, VSCo
 // or not empty arrays are accepted and link which will not be explained here.
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
-    configFunc("com.example.invert", "cuinvert", "VapourSynth Invert Example", VAPOURSYNTH_API_VERSION, 1, plugin);
+    configFunc("com.example.invert", "cuinvert", "VapourSynth CUDA Invert Example", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("Filter", "clip:clip;enabled:int:opt;", invertCreate, 0, plugin);
 }
