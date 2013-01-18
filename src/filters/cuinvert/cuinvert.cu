@@ -24,68 +24,6 @@ static void VS_CC invertInit(VSMap *in, VSMap *out, void **instanceData, VSNode 
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
-// This is the main function that gets called when a frame should be produced. It will, in most cases, get
-// called several times to produce one frame. This state is being kept track of by the value of
-// activationReason. The first call to produce a certain frame n is always arInitial. In this state
-// you should request all the input frames you need. Always do it in ascending order to play nice with the
-// upstream filters.
-// Once all frames are ready, the the filter will be called with arAllFramesReady. It is now time to
-// do the actual processing.
-static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    InvertData *d = (InvertData *) * instanceData;
-
-    if (activationReason == arInitial) {
-        // Request the source frame on the first call
-        vsapi->requestFrameFilter(n, d->node, frameCtx);
-    } else if (activationReason == arAllFramesReady) {
-        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        // The reason we query this on a per frame basis is because we want our filter
-        // to accept clips with varying dimensions. If we reject such content using d->vi
-        // would be better.
-        const VSFormat *fi = d->vi->format;
-        int height = vsapi->getFrameHeight(src, 0);
-        int width = vsapi->getFrameWidth(src, 0);
-
-
-        // When creating a new frame for output it is VERY EXTREMELY SUPER IMPORTANT to
-        // supply the "dominant" source frame to copy properties from. Frame props
-        // are an essential part of the filter chain and you should NEVER break it.
-        VSFrameRef *dst = vsapi->newVideoFrame(fi, width, height, src, core);
-
-        // It's processing loop time!
-        // Loop over all the planes
-        int plane;
-        for (plane = 0; plane < fi->numPlanes; plane++) {
-            const uint8_t *srcp = vsapi->getReadPtr(src, plane);
-            int src_stride = vsapi->getStride(src, plane);
-            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            int dst_stride = vsapi->getStride(dst, plane); // note that if a frame has the same dimensions and format, the stride is guaranteed to be the same. int dst_stride = src_stride would be fine too in this filter.
-            // Since planes may be subsampled you have to query the height of them individually
-            int h = vsapi->getFrameHeight(src, plane);
-            int y;
-            int w = vsapi->getFrameWidth(src, plane);
-            int x;
-
-            for (y = 0; y < h; y++) {
-                for (x = 0; x < w; x++)
-                    dstp[x] = ~srcp[x];
-
-                dstp += dst_stride;
-                srcp += src_stride;
-            }
-        }
-
-        // Release the source frame
-        vsapi->freeFrame(src);
-
-        // A reference is consumed when it is returned, so saving the dst reference somewhere
-        // and reusing it is not allowed.
-        return dst;
-    }
-
-    return 0;
-}
-
 static __global__ void invertKernel(uint8_t * __restrict__ d_srcdata, uint8_t * __restrict__ d_dstdata, int width, int height) {
     const int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
@@ -96,7 +34,7 @@ static __global__ void invertKernel(uint8_t * __restrict__ d_srcdata, uint8_t * 
     d_dstdata[width * iy + ix] = ~d_srcdata[width * iy + ix];
 }
 
-static void invertWithCuda(VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi, const VSAPI *vsapi){
+static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi, const VSAPI *vsapi){
     cudaPitchedPtr d_srcp;
     cudaPitchedPtr d_dstp;
 
@@ -141,6 +79,71 @@ static void invertWithCuda(VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi,
         CHECKCUDA(cudaFree(d_dstp.ptr));
     }
 }
+
+// This is the main function that gets called when a frame should be produced. It will, in most cases, get
+// called several times to produce one frame. This state is being kept track of by the value of
+// activationReason. The first call to produce a certain frame n is always arInitial. In this state
+// you should request all the input frames you need. Always do it in ascending order to play nice with the
+// upstream filters.
+// Once all frames are ready, the the filter will be called with arAllFramesReady. It is now time to
+// do the actual processing.
+static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    InvertData *d = (InvertData *) * instanceData;
+
+    if (activationReason == arInitial) {
+        // Request the source frame on the first call
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        // The reason we query this on a per frame basis is because we want our filter
+        // to accept clips with varying dimensions. If we reject such content using d->vi
+        // would be better.
+        const VSFormat *fi = d->vi->format;
+        int height = vsapi->getFrameHeight(src, 0);
+        int width = vsapi->getFrameWidth(src, 0);
+
+
+        // When creating a new frame for output it is VERY EXTREMELY SUPER IMPORTANT to
+        // supply the "dominant" source frame to copy properties from. Frame props
+        // are an essential part of the filter chain and you should NEVER break it.
+        VSFrameRef *dst = vsapi->newVideoFrame(fi, width, height, src, core);
+
+        // It's processing loop time!
+        // Loop over all the planes
+        // int plane;
+        // for (plane = 0; plane < fi->numPlanes; plane++) {
+        //     const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+        //     int src_stride = vsapi->getStride(src, plane);
+        //     uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+        //     int dst_stride = vsapi->getStride(dst, plane); // note that if a frame has the same dimensions and format, the stride is guaranteed to be the same. int dst_stride = src_stride would be fine too in this filter.
+        //     // Since planes may be subsampled you have to query the height of them individually
+        //     int h = vsapi->getFrameHeight(src, plane);
+        //     int y;
+        //     int w = vsapi->getFrameWidth(src, plane);
+        //     int x;
+
+        //     for (y = 0; y < h; y++) {
+        //         for (x = 0; x < w; x++)
+        //             dstp[x] = ~srcp[x];
+
+        //         dstp += dst_stride;
+        //         srcp += src_stride;
+        //     }
+        // }
+
+        invertWithCuda(src, dst, fi, vsapi);
+
+        // Release the source frame
+        vsapi->freeFrame(src);
+
+        // A reference is consumed when it is returned, so saving the dst reference somewhere
+        // and reusing it is not allowed.
+        return dst;
+    }
+
+    return 0;
+}
+
 
 // Free all allocated data on filter destruction
 static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
