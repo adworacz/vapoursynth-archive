@@ -24,20 +24,19 @@ static void VS_CC invertInit(VSMap *in, VSMap *out, void **instanceData, VSNode 
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
-static __global__ void invertKernel(uint8_t * __restrict__ d_srcdata, uint8_t * __restrict__ d_dstdata, int width, int height) {
-    const int ix = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
-    const int iy = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+static __global__ void invertKernel(const uint8_t * __restrict__ d_srcdata, uint8_t * __restrict__ d_dstdata, int width, int height, int src_pitch, int dst_pitch) {
+    const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
+    const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
 
-    if (ix > width || iy > height)
+    if (column >= width || row >= height)
         return;
 
-    d_dstdata[width * iy + ix] = ~d_srcdata[width * iy + ix];
+    d_dstdata[dst_pitch * row + column] = ~d_srcdata[src_pitch * row + column];
 }
 
 static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi, const VSAPI *vsapi){
     cudaPitchedPtr d_srcp;
     cudaPitchedPtr d_dstp;
-
 
     int deviceID = 0;
     cudaDeviceProp deviceProp;
@@ -54,6 +53,7 @@ static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSForma
 
         const uint8_t *srcp = vsapi->getReadPtr(src, plane);
         uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+
         int src_stride = vsapi->getStride(src, plane);
         int dst_stride = vsapi->getStride(dst, plane);
 
@@ -65,9 +65,9 @@ static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSForma
 
         //Do processing.
         dim3 threads(blockSize, blockSize);
-        dim3 grid(ceil(w / threads.x), ceil(h / threads.y));
+        dim3 grid(ceil(w / threads.x), ceil((float)h / threads.y));
 
-        invertKernel<<<grid, threads>>>((uint8_t *)d_srcp.ptr, (uint8_t *)d_dstp.ptr, w, h);
+        invertKernel<<<grid, threads>>>((uint8_t *)d_srcp.ptr, (uint8_t *)d_dstp.ptr, w, h, d_srcp.pitch, d_dstp.pitch);
 
         CHECKCUDA(cudaMemcpy2D(dstp, dst_stride, d_dstp.ptr, d_dstp.pitch, w * fi->bytesPerSample, h, cudaMemcpyDeviceToHost));
 
