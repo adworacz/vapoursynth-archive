@@ -57,9 +57,6 @@ static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSForma
         int src_stride = vsapi->getStride(src, plane);
         int dst_stride = vsapi->getStride(dst, plane);
 
-        if (plane > 0)
-            h = h >> fi->subSamplingH; //Account for subsampling in non-luma planes
-
         //Allocate GPU memory for src frame and dst frame, then ship over src data.
         CHECKCUDA(cudaMalloc3D(&d_srcp, make_cudaExtent(w * fi->bytesPerSample, h, 1)));
         CHECKCUDA(cudaMalloc3D(&d_dstp, make_cudaExtent(w * fi->bytesPerSample, h, 1)));
