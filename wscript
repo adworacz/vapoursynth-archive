@@ -318,8 +318,10 @@ def build(bld):
         for path in paths:
             srcpaths += [os.path.join(path, '*.c'),
                          os.path.join(path, '*.cpp'),
-                         os.path.join(path, '*.cu'),
                          os.path.join(path, '*.asm')]
+
+            if bld.env.CUDA == 'true':
+                srcpaths += [os.path.join(path, '*.cu')]
 
         return srcpaths
 
