@@ -241,6 +241,10 @@ public:
     VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFrame &f);
 
+#ifdef __CUDACC__
+    VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation);
+#endif
+
     VSMap &getProperties() {
         return properties;
     }
@@ -455,6 +459,7 @@ public:
     QList<VSNode *> caches;
     VSThreadPool *threadPool;
     MemoryUse *memory;
+    MemoryUse *gpuMemory;
 
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc);
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc);

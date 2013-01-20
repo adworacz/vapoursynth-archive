@@ -433,7 +433,7 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
 extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
 
-VSCore::VSCore(int threads) : memory(new MemoryUse()), formatIdOffset(1000) {
+VSCore::VSCore(int threads) : memory(new MemoryUse()), gpuMemory(new MemoryUse()), formatIdOffset(1000) {
     threadPool = new VSThreadPool(this, threads);
 
     // Register known formats with informational names
