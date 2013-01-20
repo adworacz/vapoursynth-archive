@@ -14,7 +14,7 @@
    #define IMAD(a, b, c) ( mul24((a), (b)) + (c) )
 #else
    //For CC >= 2.0
-  #define IMAD(a, b, c) ( mulhi((a), (b)) + (c) )
+   #define IMAD(a, b, c) ( mulhi((a), (b)) + (c) )
 #endif
 //////////////////////////////////////////////////////////////////
 

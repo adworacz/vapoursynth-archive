@@ -1,21 +1,9 @@
 // A CUDA specific file for all CUDA-aimed functions of the VSCore.
 
 #include "vscore.h"
-#include "VSHelper.h"
-#include "x86utils.h"
-#include "version.h"
-
 #include "VSCuda.h"
 
-// Filter headers
-extern "C" {
-#include "simplefilters.h"
-#include "vsresize.h"
-}
-#include "cachefilter.h"
-#include "exprfilter.h"
-
-VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation) : frameLocation(fLocation){
+VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation) : format(f), width(width), height(height), frameLocation(fLocation){
     if(fLocation == flLocal){
         VSFrame(f, width, height, propSrc, core);
     } else {
