@@ -55,7 +55,7 @@ void FrameContext::setError(const QByteArray &errorMsg) {
 
 ///////////////
 
-VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : QSharedData(), mem(mem), size(size) {
+VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : QSharedData(), mem(mem), size(size), frameLocation(flLocal) {
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
     Q_CHECK_PTR(data);
     mem->add(size);
@@ -64,16 +64,19 @@ VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : QSharedData(), mem(mem)
 VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
     size = d.size;
     mem = d.mem;
+    frameLocation = d.frameLocation;
     data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
     Q_CHECK_PTR(data);
     mem->add(size);
     memcpy(data, d.data, size);
 }
 
+#if !FEATURE_CUDA
 VSFrameData::~VSFrameData() {
-	vs_aligned_free(data);
+    vs_aligned_free(data);
     mem->subtract(size);
 }
+#endif
 
 ///////////////
 

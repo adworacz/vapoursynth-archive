@@ -166,6 +166,8 @@ enum FilterArgumentType {
     faFunc
 };
 
+enum FrameLocation { flLocal = 0, flGPU = 1 };
+
 class FilterArgument {
 public:
     QByteArray name;
@@ -217,16 +219,22 @@ class VSFrameData : public QSharedData {
 private:
     MemoryUse *mem;
     quint32 size;
+    FrameLocation frameLocation;
 public:
     uint8_t *data;
     VSFrameData(quint32 size, MemoryUse *mem);
     VSFrameData(const VSFrameData &d);
     ~VSFrameData();
+
+
+#if FEATURE_CUDA
+    VSFrameData(int width, int height, int *stride, int bytesPerSample, MemoryUse *mem, FrameLocation fLocation);
+#endif
+
 };
 
 class VSFrame {
 private:
-    enum FrameLocation { flLocal = 0, flGPU = 1 };
     const VSFormat *format;
     QSharedDataPointer<VSFrameData> data[3];
     int width;
