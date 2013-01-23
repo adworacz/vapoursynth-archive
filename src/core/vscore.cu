@@ -4,7 +4,7 @@
 #include "VSCuda.h"
 #include "VSHelper.h"
 
-//Note: the FrameLocation may be unnecessary, especially if only VSFrame calls VSFrameData.
+//Note: FrameLocation is necessary in order to manage memory correctly in the VSFrameData destructor.
 VSFrameData::VSFrameData(int width, int height, int *stride, int bytesPerSample, MemoryUse * mem,
                          FrameLocation fLocation) : frameLocation(fLocation) {
     cudaPitchedPtr d_ptr;
