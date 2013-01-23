@@ -126,7 +126,6 @@ def configure(conf):
     if conf.options.cuda == 'true':
         conf.load('cuda')
 
-
     if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
         # Load Yasm explicitly, then the Nasm module which
         # supports both Nasm and Yasm.
