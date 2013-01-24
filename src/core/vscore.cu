@@ -96,7 +96,7 @@ void VSFrame::transferFrame(const VSFrame &srcFrame, VSFrame &dstFrame, const VS
     // \End comment.
 
     for(int plane = 0; plane < dstFrame.format->numPlanes; plane++) {
-        dstFrame.data[plane].data().transferData(srcFrame.data[plane].data(), srcFrame.stride[plane],
+        dstFrame.data[plane].data()->transferData(srcFrame.data[plane].data(), srcFrame.stride[plane],
                                           dstFrame.stride[plane], dstFrame.width, dstFrame.height,
                                           f->bytesPerSample, direction);
     }
