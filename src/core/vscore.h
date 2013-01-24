@@ -168,6 +168,11 @@ enum FilterArgumentType {
 
 enum FrameLocation { flLocal = 0, flGPU = 1 };
 
+enum FrameTransferDirection {
+    ftdCPUtoGPU = 0, //Might change to HOST_DEVICE, DEVICE_HOST similar to CUDA API.
+    ftdGPUtoCPU = 1
+};
+
 class FilterArgument {
 public:
     QByteArray name;
@@ -229,6 +234,8 @@ public:
 
 #if FEATURE_CUDA
     VSFrameData(int width, int height, int *stride, int bytesPerSample, MemoryUse *mem, FrameLocation fLocation);
+    void transferData(const VSFrameData *src, int srcStride, int dstStride, int width, int height,
+                      int bytesPerSample, FrameTransferDirection direction);
 #endif
 
 };
@@ -251,6 +258,7 @@ public:
 
 #ifdef __CUDACC__
     VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation);
+    void transferFrame(const VSFrame &srcFrame, VSFrame &dstFrame, const VSFormat *f, FrameTransferDirection direction);
 #endif
 
     VSMap &getProperties() {
@@ -274,6 +282,9 @@ public:
     int getStride(int plane) const;
     const uint8_t *getReadPtr(int plane) const;
     uint8_t *getWritePtr(int plane);
+    FrameLocation getFrameLocation() const {
+        return frameLocation;
+    }
 };
 
 class FrameContext {
@@ -473,6 +484,11 @@ public:
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc);
     PVideoFrame copyFrame(const PVideoFrame &srcf);
     void copyFrameProps(const PVideoFrame &src, PVideoFrame &dst);
+
+#if FEATURE_CUDA
+    PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, FrameLocation fLocation);
+    void transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction);
+#endif
 
     const VSFormat *getFormatPreset(int id);
     const VSFormat *registerFormat(VSColorFamily colorFamily, VSSampleType sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, const char *name = NULL, int id = pfNone);

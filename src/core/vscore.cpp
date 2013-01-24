@@ -507,6 +507,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), gpuMemory(new MemoryUse()
 
 VSCore::~VSCore() {
     memory->signalFree();
+    gpuMemory->signalFree();
     delete threadPool;
     foreach(VSPlugin * p, plugins)
         delete p;
