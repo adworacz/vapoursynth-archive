@@ -6,7 +6,7 @@
 
 //Note: FrameLocation is necessary in order to manage memory correctly in the VSFrameData destructor.
 VSFrameData::VSFrameData(int width, int height, int *stride, int bytesPerSample, MemoryUse * mem,
-                         FrameLocation fLocation) : frameLocation(fLocation) {
+                         FrameLocation fLocation) : mem(mem), frameLocation(fLocation) {
     cudaPitchedPtr d_ptr;
 
     CHECKCUDA(cudaMalloc3D(&d_ptr, make_cudaExtent(width * bytesPerSample, height, 1)));
@@ -24,14 +24,13 @@ VSFrameData::~VSFrameData() {
     mem->subtract(size);
 }
 
-void VSFrameData::transferData(const VSFrameData *src, int srcStride,
-                               int dstStride, int width, int height, int bytesPerSample,
-                               FrameTransferDirection direction) {
+void VSFrameData::transferData(VSFrameData *dst, int dstStride,
+                               int srcStride, int width, int height, int bytesPerSample,
+                               FrameTransferDirection direction) const {
     cudaMemcpyKind transferKind = (direction == ftdCPUtoGPU ? cudaMemcpyHostToDevice : cudaMemcpyDeviceToHost);
 
-    CHECKCUDA(cudaMemcpy2D(data, dstStride, src->data, srcStride, width * bytesPerSample,
+    CHECKCUDA(cudaMemcpy2D(dst->data, dstStride, data, srcStride, width * bytesPerSample,
                                height, transferKind));
-
 }
 
 //Note: future integration can use default parameters to prevent code duplication.
@@ -80,25 +79,25 @@ VSFrame::VSFrame(const VSFormat * f, int width, int height, const VSFrame * prop
     }
 }
 
-void VSFrame::transferFrame(const VSFrame &srcFrame, VSFrame &dstFrame, const VSFormat *f, FrameTransferDirection direction) {
-    if(dstFrame.width != srcFrame.width || dstFrame.height != srcFrame.height)
+void VSFrame::transferFrame(VSFrame &dstFrame, FrameTransferDirection direction) const {
+    if(dstFrame.width != width || dstFrame.height != height)
         qFatal("The source frame and destination frame dimensions do not match.");
 
     //Double check the strides, just to make sure cuda isn't pulling any nasty shit.
     //This can probably safely be removed.
-    if(dstFrame.format->numPlanes != srcFrame.format->numPlanes)
+    if(dstFrame.format->numPlanes != format->numPlanes)
         qFatal("The source frame and destination frame do not have the same number of planes.");
 
-    for(int i = 0; i < srcFrame.format->numPlanes; i++) {
-        if(dstFrame.stride[i] != srcFrame.stride[i])
+    for(int i = 0; i < format->numPlanes; i++) {
+        if(dstFrame.stride[i] != stride[i])
             qFatal("The source frame and destination frame do not have matching strides.");
     }
     // \End comment.
 
-    for(int plane = 0; plane < dstFrame.format->numPlanes; plane++) {
-        dstFrame.data[plane].data()->transferData(srcFrame.data[plane].data(), srcFrame.stride[plane],
-                                          dstFrame.stride[plane], dstFrame.width, dstFrame.height,
-                                          f->bytesPerSample, direction);
+    for(int plane = 0; plane < format->numPlanes; plane++) {
+        data[plane].data()->transferData(dstFrame.data[plane].data(), dstFrame.stride[plane],
+                                                  stride[plane], width,
+                                                  height, format->bytesPerSample, direction);
     }
 }
 
@@ -108,5 +107,5 @@ PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, cons
 
 
 void VSCore::transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction){
-
+    srcf->transferFrame(*dstf.data(), direction);
 }

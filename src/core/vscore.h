@@ -234,8 +234,7 @@ public:
 
 #if FEATURE_CUDA
     VSFrameData(int width, int height, int *stride, int bytesPerSample, MemoryUse *mem, FrameLocation fLocation);
-    void transferData(const VSFrameData *src, int srcStride, int dstStride, int width, int height,
-                      int bytesPerSample, FrameTransferDirection direction);
+    void transferData(VSFrameData *dst, int dstStride, int srcStride, int width, int height, int bytesPerSample, FrameTransferDirection direction) const;
 #endif
 
 };
@@ -258,7 +257,7 @@ public:
 
 #ifdef __CUDACC__
     VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation);
-    void transferFrame(const VSFrame &srcFrame, VSFrame &dstFrame, const VSFormat *f, FrameTransferDirection direction);
+    void transferFrame(VSFrame &dstFrame, FrameTransferDirection direction) const;
 #endif
 
     VSMap &getProperties() {
