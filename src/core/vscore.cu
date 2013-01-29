@@ -105,7 +105,6 @@ PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, cons
     return PVideoFrame(new VSFrame(f, width, height, propSrc, this, fLocation));
 }
 
-
 void VSCore::transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction){
     srcf->transferFrame(*dstf.data(), direction);
 }

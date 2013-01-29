@@ -125,6 +125,10 @@ static VSFrameRef *VS_CC newVideoFrame(const VSFormat *format, int width, int he
     Q_ASSERT(format);
     return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.data() : NULL, fLocation));
 }
+
+static void VS_CC transferVideoFrame(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core){
+    core->transferVideoFrame(srcFrame->frame, dstFrame->frame, direction);
+}
 #endif
 
 static VSFrameRef *VS_CC newVideoFrame2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) {
