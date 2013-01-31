@@ -236,6 +236,11 @@ typedef int (VS_CC *VSGetStride)(const VSFrameRef *f, int plane);
 typedef const uint8_t *(VS_CC *VSGetReadPtr)(const VSFrameRef *f, int plane);
 typedef uint8_t *(VS_CC *VSGetWritePtr)(VSFrameRef *f, int plane);
 
+#if FEATURE_CUDA
+typedef VSFrameRef *(VS_CC *VSNewVideoFrame3)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
+typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core);
+#endif
+
 // property access
 typedef const VSVideoInfo *(VS_CC *VSGetVideoInfo)(VSNodeRef *node);
 typedef void (VS_CC *VSSetVideoInfo)(const VSVideoInfo *vi, int numOutputs, VSNode *node);
@@ -372,6 +377,11 @@ struct VSAPI {
     VSSetMaxCacheSize setMaxCacheSize;
     VSGetOutputIndex getOutputIndex;
     VSNewVideoFrame2 newVideoFrame2;
+
+#if FEATURE_CUDA
+    VSNewVideoFrame3 newVideoFrame3;
+    VSTransferVideoFrame transferVideoFrame;
+#endif
 
     VSSetMessageHandler setMessageHandler;
 };

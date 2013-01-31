@@ -121,7 +121,7 @@ static VSFrameRef *VS_CC newVideoFrame(const VSFormat *format, int width, int he
 }
 
 #if FEATURE_CUDA
-static VSFrameRef *VS_CC newVideoFrame(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation) {
+static VSFrameRef *VS_CC newVideoFrame3(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation) {
     Q_ASSERT(format);
     return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.data() : NULL, fLocation));
 }
@@ -627,6 +627,11 @@ const VSAPI vsapi = {
     &setMaxCacheSize,
     &getOutputIndex,
     &newVideoFrame2,
+
+#if FEATURE_CUDA
+    &newVideoFrame3,
+    &transferVideoFrame,
+#endif
 
     &setMessageHandler
 };
