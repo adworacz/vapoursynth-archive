@@ -35,9 +35,6 @@ static __global__ void invertKernel(const uint8_t * __restrict__ d_srcdata, uint
 }
 
 static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi, const VSAPI *vsapi){
-    cudaPitchedPtr d_srcp;
-    cudaPitchedPtr d_dstp;
-
     int deviceID = 0;
     cudaDeviceProp deviceProp;
     CHECKCUDA(cudaGetDeviceProperties(&deviceProp, deviceID));
@@ -57,23 +54,11 @@ static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSForma
         int src_stride = vsapi->getStride(src, plane);
         int dst_stride = vsapi->getStride(dst, plane);
 
-        //Allocate GPU memory for src frame and dst frame, then ship over src data.
-        CHECKCUDA(cudaMalloc3D(&d_srcp, make_cudaExtent(w * fi->bytesPerSample, h, 1)));
-        CHECKCUDA(cudaMalloc3D(&d_dstp, make_cudaExtent(w * fi->bytesPerSample, h, 1)));
-
-        CHECKCUDA(cudaMemcpy2D(d_srcp.ptr, d_srcp.pitch, srcp, src_stride, w * fi->bytesPerSample, h, cudaMemcpyHostToDevice));
-
         //Do processing.
         dim3 threads(blockSize, blockSize);
         dim3 grid(ceil(w / threads.x), ceil((float)h / threads.y));
 
-        invertKernel<<<grid, threads>>>((uint8_t *)d_srcp.ptr, (uint8_t *)d_dstp.ptr, w, h, d_srcp.pitch, d_dstp.pitch);
-
-        CHECKCUDA(cudaMemcpy2D(dstp, dst_stride, d_dstp.ptr, d_dstp.pitch, w * fi->bytesPerSample, h, cudaMemcpyDeviceToHost));
-
-        //Free up GPU memory.
-        CHECKCUDA(cudaFree(d_srcp.ptr));
-        CHECKCUDA(cudaFree(d_dstp.ptr));
+        invertKernel<<<grid, threads>>>(srcp, dstp, w, h, src_stride, dst_stride);
     }
 }
 
@@ -128,7 +113,18 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         //     }
         // }
 
-        invertWithCuda(src, dst, fi, vsapi);
+        VSFrameRef *src_gpu = vsapi->newVideoFrame3(fi, width, height, src, core, flGPU);
+        VSFrameRef *dst_gpu = vsapi->newVideoFrame3(fi, width, height, src, core, flGPU);
+
+        vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core);
+
+        invertWithCuda(src_gpu, dst_gpu, fi, vsapi);
+
+        vsapi->transferVideoFrame(dst_gpu, dst, ftdGPUtoCPU, core);
+
+        vsapi->freeFrame(src_gpu);
+        vsapi->freeFrame(dst_gpu);
+
         // Release the source frame
         vsapi->freeFrame(src);
 
