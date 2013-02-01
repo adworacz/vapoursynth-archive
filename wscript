@@ -332,7 +332,7 @@ def build(bld):
 
     bld(features = 'c qxx asm',
         includes = 'include',
-        use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC'],
+        use = ['QTCORE', 'SWSCALE', 'AVUTIL', 'AVCODEC', 'CUDA', 'CUDART'],
         source = bld.path.ant_glob(sources),
         target = 'objs')
 
