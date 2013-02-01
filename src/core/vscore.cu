@@ -43,8 +43,8 @@ VSFrame::VSFrame(const VSFormat * f, int width, int height, const VSFrame * prop
     if (propSrc)
         properties = propSrc->properties;
 
-    if (frameLocation != flLocal || frameLocation != flGPU)
-        qFatal("Invalid frame location. Please use flLocal or flGPU.");
+    if (frameLocation != flLocal && frameLocation != flGPU)
+        qFatal("Invalid frame location. Please use flLocal or flGPU. Specified: %d", frameLocation);
 
     if (frameLocation == flLocal) {
         //Handle CPU implementation.
