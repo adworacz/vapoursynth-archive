@@ -13,7 +13,7 @@ from waflib.Configure import conf
 class cuda(Task.Task):
    run_str = '${NVCC} ${CUDAFLAGS} ${NVCC_CXXFLAGS} ${FRAMEWORKPATH_ST:FRAMEWORKPATH} ${CPPPATH_ST:INCPATHS} ${DEFINES_ST:DEFINES} ${CXX_SRC_F}${SRC} ${CXX_TGT_F}${TGT}'
 #   run_str = '${NVCC} ${CUDAFLAGS} ${CXXFLAGS} ${FRAMEWORKPATH_ST:FRAMEWORKPATH} ${CPPPATH_ST:INCPATHS} ${DEFINES_ST:DEFINES} ${CXX_SRC_F}${SRC} ${CXX_TGT_F}${TGT}'
-   color   = 'GREEN'
+   color   = 'BOLD'
    ext_in  = ['.h']
    vars    = ['CCDEPS']
    scan    = c_preproc.scan

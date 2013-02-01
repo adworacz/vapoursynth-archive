@@ -194,6 +194,13 @@ typedef enum VSMessageType {
     mtFatal
 } VSMessageType;
 
+typedef enum FrameLocation { flLocal = 0, flGPU = 1 } FrameLocation;
+
+typedef enum FrameTransferDirection {
+    ftdCPUtoGPU = 0, //Might change to HOST_DEVICE, DEVICE_HOST similar to CUDA API.
+    ftdGPUtoCPU = 1
+} FrameTransferDirection;
+
 // core function typedefs
 typedef	VSCore *(VS_CC *VSCreateCore)(int threads);
 typedef	void (VS_CC *VSFreeCore)(VSCore *core);

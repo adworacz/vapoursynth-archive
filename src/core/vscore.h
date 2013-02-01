@@ -166,12 +166,6 @@ enum FilterArgumentType {
     faFunc
 };
 
-enum FrameLocation { flLocal = 0, flGPU = 1 };
-
-enum FrameTransferDirection {
-    ftdCPUtoGPU = 0, //Might change to HOST_DEVICE, DEVICE_HOST similar to CUDA API.
-    ftdGPUtoCPU = 1
-};
 
 class FilterArgument {
 public:
