@@ -29,8 +29,7 @@ void VSFrameData::transferData(VSFrameData *dst, int dstStride,
                                FrameTransferDirection direction) const {
     cudaMemcpyKind transferKind = (direction == ftdCPUtoGPU ? cudaMemcpyHostToDevice : cudaMemcpyDeviceToHost);
 
-    CHECKCUDA(cudaMemcpy2D(dst->data, dstStride, data, srcStride, width * bytesPerSample,
-                               height, transferKind));
+    CHECKCUDA(cudaMemcpy2D(dst->data, dstStride, data, srcStride, width * bytesPerSample, height, transferKind));
 }
 
 //Note: future integration can use default parameters to prevent code duplication.
@@ -88,16 +87,10 @@ void VSFrame::transferFrame(VSFrame &dstFrame, FrameTransferDirection direction)
     if(dstFrame.format->numPlanes != format->numPlanes)
         qFatal("The source frame and destination frame do not have the same number of planes.");
 
-    for(int i = 0; i < format->numPlanes; i++) {
-        if(dstFrame.stride[i] != stride[i])
-            qFatal("The source frame and destination frame do not have matching strides.");
-    }
-    // \End comment.
-
     for(int plane = 0; plane < format->numPlanes; plane++) {
         data[plane].data()->transferData(dstFrame.data[plane].data(), dstFrame.stride[plane],
-                                                  stride[plane], width,
-                                                  height, format->bytesPerSample, direction);
+                                                  stride[plane], getWidth(plane),
+                                                  getHeight(plane), format->bytesPerSample, direction);
     }
 }
 
