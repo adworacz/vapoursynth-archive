@@ -84,46 +84,15 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         int height = vsapi->getFrameHeight(src, 0);
         int width = vsapi->getFrameWidth(src, 0);
 
+        if (vsapi->getFrameLocation(src) != flGPU) {
+            vsapi->setFilterError("cuinvert: A source frame is not located on the GPU for this GPU-only function.", frameCtx);
+            vsapi->freeNode(d->node);
+            return 0;
+        }
 
-        // When creating a new frame for output it is VERY EXTREMELY SUPER IMPORTANT to
-        // supply the "dominant" source frame to copy properties from. Frame props
-        // are an essential part of the filter chain and you should NEVER break it.
-        VSFrameRef *dst = vsapi->newVideoFrame(fi, width, height, src, core);
+        VSFrameRef *dst = vsapi->newVideoFrame3(fi, width, height, src, core, flGPU);
 
-        // It's processing loop time!
-        // Loop over all the planes
-        // int plane;
-        // for (plane = 0; plane < fi->numPlanes; plane++) {
-        //     const uint8_t *srcp = vsapi->getReadPtr(src, plane);
-        //     int src_stride = vsapi->getStride(src, plane);
-        //     uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-        //     int dst_stride = vsapi->getStride(dst, plane); // note that if a frame has the same dimensions and format, the stride is guaranteed to be the same. int dst_stride = src_stride would be fine too in this filter.
-        //     // Since planes may be subsampled you have to query the height of them individually
-        //     int h = vsapi->getFrameHeight(src, plane);
-        //     int y;
-        //     int w = vsapi->getFrameWidth(src, plane);
-        //     int x;
-
-        //     for (y = 0; y < h; y++) {
-        //         for (x = 0; x < w; x++)
-        //             dstp[x] = ~srcp[x];
-
-        //         dstp += dst_stride;
-        //         srcp += src_stride;
-        //     }
-        // }
-
-        VSFrameRef *src_gpu = vsapi->newVideoFrame3(fi, width, height, src, core, flGPU);
-        VSFrameRef *dst_gpu = vsapi->newVideoFrame3(fi, width, height, src, core, flGPU);
-
-        vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core);
-
-        invertWithCuda(src_gpu, dst_gpu, fi, vsapi);
-
-        vsapi->transferVideoFrame(dst_gpu, dst, ftdGPUtoCPU, core);
-
-        vsapi->freeFrame(src_gpu);
-        vsapi->freeFrame(dst_gpu);
+        invertWithCuda(src, dst, fi, vsapi);
 
         // Release the source frame
         vsapi->freeFrame(src);

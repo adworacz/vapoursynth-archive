@@ -129,6 +129,10 @@ static VSFrameRef *VS_CC newVideoFrame3(const VSFormat *format, int width, int h
 static void VS_CC transferVideoFrame(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core){
     core->transferVideoFrame(srcFrame->frame, dstFrame->frame, direction);
 }
+
+static FrameLocation VS_CC getFrameLocation(const VSFrameRef *f) {
+    return f->frame->getFrameLocation();
+}
 #endif
 
 static VSFrameRef *VS_CC newVideoFrame2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) {
@@ -631,6 +635,7 @@ const VSAPI vsapi = {
 #if FEATURE_CUDA
     &newVideoFrame3,
     &transferVideoFrame,
+    &getFrameLocation,
 #endif
 
     &setMessageHandler
