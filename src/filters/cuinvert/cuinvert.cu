@@ -62,13 +62,6 @@ static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSForma
     }
 }
 
-// This is the main function that gets called when a frame should be produced. It will, in most cases, get
-// called several times to produce one frame. This state is being kept track of by the value of
-// activationReason. The first call to produce a certain frame n is always arInitial. In this state
-// you should request all the input frames you need. Always do it in ascending order to play nice with the
-// upstream filters.
-// Once all frames are ready, the the filter will be called with arAllFramesReady. It is now time to
-// do the actual processing.
 static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *) * instanceData;
 
@@ -77,12 +70,10 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        // The reason we query this on a per frame basis is because we want our filter
-        // to accept clips with varying dimensions. If we reject such content using d->vi
-        // would be better.
         const VSFormat *fi = d->vi->format;
-        int height = vsapi->getFrameHeight(src, 0);
+
         int width = vsapi->getFrameWidth(src, 0);
+        int height = vsapi->getFrameHeight(src, 0);
 
         if (vsapi->getFrameLocation(src) != flGPU) {
             vsapi->setFilterError("cuinvert: A source frame is not located on the GPU for this GPU-only function.", frameCtx);
@@ -90,22 +81,21 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
             return 0;
         }
 
+        //For something as simple as an invert, we can probably get away with out creating a
+        //new frame, as we can just operate on the source data, but due to the design of
+        //Vapoursynth, we don't have that option, so we lose some speed there.
         VSFrameRef *dst = vsapi->newVideoFrame3(fi, width, height, src, core, flGPU);
 
         invertWithCuda(src, dst, fi, vsapi);
 
-        // Release the source frame
         vsapi->freeFrame(src);
 
-        // A reference is consumed when it is returned, so saving the dst reference somewhere
-        // and reusing it is not allowed.
         return dst;
     }
 
     return 0;
 }
 
-// Free all allocated data on filter destruction
 static void VS_CC invertFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     InvertData *d = (InvertData *)instanceData;
     vsapi->freeNode(d->node);
