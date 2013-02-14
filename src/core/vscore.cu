@@ -9,10 +9,32 @@ VSFrameData::VSFrameData(int width, int height, int *stride, int bytesPerSample,
                          FrameLocation fLocation) : mem(mem), frameLocation(fLocation) {
     cudaPitchedPtr d_ptr;
 
+    if (fLocation != flGPU) {
+        qFatal("Only GPU memory allocation is currently supported by this function. This needs to be fixed.");
+    }
+
     CHECKCUDA(cudaMalloc3D(&d_ptr, make_cudaExtent(width * bytesPerSample, height, 1)));
     data = (uint8_t *) d_ptr.ptr;
     *stride = d_ptr.pitch;
-    mem->add(*stride * height);
+    size = *stride * height;
+    mem->add(size);
+}
+
+VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
+    size = d.size;
+    mem = d.mem;
+    frameLocation = d.frameLocation;
+
+    if (frameLocation == flLocal) {
+        data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
+        Q_CHECK_PTR(data);
+        memcpy(data, d.data, size);
+    } else {
+        CHECKCUDA(cudaMalloc(&data, size));
+        CHECKCUDA(cudaMemcpy(data, d.data, size, cudaMemcpyDeviceToDevice));
+    }
+
+    mem->add(size);
 }
 
 VSFrameData::~VSFrameData() {

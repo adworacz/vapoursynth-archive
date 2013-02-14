@@ -61,6 +61,7 @@ VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : QSharedData(), mem(mem)
     mem->add(size);
 }
 
+#if !FEATURE_CUDA
 VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
     size = d.size;
     mem = d.mem;
@@ -71,7 +72,6 @@ VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
     memcpy(data, d.data, size);
 }
 
-#if !FEATURE_CUDA
 VSFrameData::~VSFrameData() {
     vs_aligned_free(data);
     mem->subtract(size);
