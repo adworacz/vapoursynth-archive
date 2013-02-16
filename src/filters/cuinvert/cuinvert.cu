@@ -24,14 +24,21 @@ static void VS_CC invertInit(VSMap *in, VSMap *out, void **instanceData, VSNode 
     vsapi->setVideoInfo(d->vi, 1, node);
 }
 
-static __global__ void invertKernel(const uint8_t * __restrict__ d_srcdata, uint8_t * __restrict__ d_dstdata, int width, int height, int src_pitch, int dst_pitch) {
+
+//Granted, this works very well for aligned memory accesses, but damn it if it isn't confusing
+//with all the sizeof and uint32_t's everywhere.
+//Long story short, it attempts to load and invert 4 pixels at a time.
+//uint8_t is usually great for video, but it doesn't align super well with a kernel that does 32 threads
+//per warp. So instead we have each thread do 4 threads using some casting trickery.
+//There might be away that is less confusing and gives comparable performance.
+static __global__ void invertKernel(const uint32_t * __restrict__ d_srcdata, uint32_t * __restrict__ d_dstdata, int width, int height, int src_pitch, int dst_pitch) {
     const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
 
     if (column >= width || row >= height)
         return;
 
-    d_dstdata[dst_pitch * row + column] = ~d_srcdata[src_pitch * row + column];
+    d_dstdata[(dst_pitch / sizeof(uint32_t)) * row + column] = ~d_srcdata[(src_pitch / sizeof(uint32_t)) * row + column];
 }
 
 static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi, const VSAPI *vsapi){
@@ -56,9 +63,9 @@ static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSForma
 
         //Do processing.
         dim3 threads(blockSize, blockSize);
-        dim3 grid(ceil(w / threads.x), ceil((float)h / threads.y));
+        dim3 grid(ceil((float)w / (threads.x * sizeof(uint32_t))), ceil((float)h / threads.y));
 
-        invertKernel<<<grid, threads>>>(srcp, dstp, w, h, src_stride, dst_stride);
+        invertKernel<<<grid, threads>>>((uint32_t *)srcp, (uint32_t *)dstp, w / sizeof(uint32_t), h, src_stride, dst_stride);
     }
 }
 
