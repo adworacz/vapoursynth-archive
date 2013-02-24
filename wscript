@@ -376,13 +376,6 @@ def build(bld):
             target = 'cuinvert',
             install_path = '${PLUGINDIR}')
 
-        bld(features = 'cxx cxxshlib',
-            includes = 'include',
-            use = ['CUDA', 'CUDART'],
-            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'transferf')])),
-            target = 'transferf',
-            install_path = '${PLUGINDIR}')
-
     if bld.env.CYTHON == 'true':
         bld(features = 'preproc',
             source = bld.path.ant_glob([os.path.join('src', 'cython', '*.pyx')]))

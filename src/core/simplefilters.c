@@ -384,7 +384,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
 				vs_memset32(dstdata, color, padt * dststride / 4);
 				break;
 			}
-            dstdata += padt * dststride; 
+            dstdata += padt * dststride;
 
             for (hloop = 0; hloop < srcheight; hloop++) {
 				switch (d->vi->format->bytesPerSample) {
@@ -2730,7 +2730,7 @@ static const VSFrameRef *VS_CC planeAverageGetFrame(int n, int activationReason,
             }
             break;
         }
-        
+
         vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1)), paReplace);
 
         vsapi->freeFrame(src);
@@ -2819,9 +2819,9 @@ static const VSFrameRef *VS_CC planeDifferenceGetFrame(int n, int activationReas
             }
             break;
         }
-        
+
         vsapi->propSetFloat(vsapi->getFramePropsRW(dst), d->prop, acc / (double)(width * height * (((int64_t)1 << d->vi->format->bitsPerSample) - 1)), paReplace);
-        
+
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
         return dst;
@@ -3375,6 +3375,93 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
     vsapi->createFilter(in, out, "MaskedMerge", maskedMergeInit, maskedMergeGetFrame, maskedMergeFree, fmParallel, 0, data, core);
 }
 
+#if FEATURE_CUDA
+///////////////////////////////
+// TransferFrame
+typedef struct {
+    VSNodeRef *node;
+    const VSVideoInfo *vi;
+    int direction; // 0 = to Host, 1 = to GPU.
+} TransferFrameData;
+
+static void VS_CC transferFrameInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
+    TransferFrameData *d = (TransferFrameData *) * instanceData;
+    vsapi->setVideoInfo(d->vi, 1, node);
+}
+
+static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    TransferFrameData *d = (TransferFrameData *) * instanceData;
+
+    if (activationReason == arInitial) {
+        vsapi->requestFrameFilter(n, d->node, frameCtx);
+    } else if (activationReason == arAllFramesReady) {
+        const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
+        const VSFormat *fi = d->vi->format;
+        int height = vsapi->getFrameHeight(src, 0);
+        int width = vsapi->getFrameWidth(src, 0);
+
+        if (d->direction == 0) {
+            //Create a new CPU/Host frame.
+            if (vsapi->getFrameLocation(src) == flLocal) {
+                vsapi->setFilterError("TransferFrame: Attempted to transfer a CPU frame to a CPU frame. Check your direction.", frameCtx);
+                vsapi->freeNode(d->node);
+                return 0;
+            }
+
+            VSFrameRef *src_cpu = vsapi->newVideoFrame(fi, width, height, src, core);
+            vsapi->transferVideoFrame(src, src_cpu, ftdGPUtoCPU, core);
+            vsapi->freeFrame(src);
+
+            return src_cpu;
+
+        } else {
+            //Create a new GPU/Device frame.
+            if (vsapi->getFrameLocation(src) == flGPU) {
+                vsapi->setFilterError("TransferFrame: Attempted to transfer a GPU frame to a GPU frame. Check your direction.", frameCtx);
+                vsapi->freeNode(d->node);
+                return 0;
+            }
+
+            VSFrameRef *src_gpu = vsapi->newVideoFrame3(fi, width, height, src, core, flGPU);
+            vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core);
+            vsapi->freeFrame(src);
+
+            return src_gpu;
+        }
+    }
+
+    return 0;
+}
+
+static void VS_CC transferFrameFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
+    TransferFrameData *d = (TransferFrameData *)instanceData;
+    vsapi->freeNode(d->node);
+    free(d);
+}
+
+static void VS_CC transferFrameCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
+    TransferFrameData d;
+    TransferFrameData *data;
+    int err;
+
+    d.node = vsapi->propGetNode(in, "clip", 0, 0);
+    d.vi = vsapi->getVideoInfo(d.node);
+
+    d.direction = vsapi->propGetInt(in, "direction", 0, &err);
+    if(err || (d.direction < 0 || d.direction > 1)) {
+        vsapi->setError(out, "TransferFrame: Direction must be specified and must be either 0 or 1.");
+        vsapi->freeNode(d.node);
+        return;
+    }
+
+    data = (TransferFrameData *)malloc(sizeof(d));
+    *data = d;
+
+    vsapi->createFilter(in, out, "TransferFrame", transferFrameInit, transferFrameGetFrame, transferFrameFree, fmParallel, 0, data, core);
+    return;
+}
+#endif
+
 //////////////////////////////////////////
 // Init
 
@@ -3411,4 +3498,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("PropToClip", "clip:clip;prop:data:opt;", propToClipCreate, 0, plugin);
     registerFunc("Merge", "clips:clip[];weight:float[]:opt;", mergeCreate, 0, plugin);
     registerFunc("MaskedMerge", "clips:clip[];mask:clip;planes:int[]:opt;first_plane:int:opt;", maskedMergeCreate, 0, plugin);
+#if FEATURE_CUDA
+    registerFunc("TransferFrame", "clip:clip;direction:int;", transferFrameCreate, 0, plugin);
+#endif
 }
