@@ -10,11 +10,11 @@
 //Maps to a single instruction on G8x / G9x / G10x
 
 #if __CUDA_ARCH__ <= 200
-   //For CC < 2.0
-   #define IMAD(a, b, c) ( mul24((a), (b)) + (c) )
+    //For CC < 2.0
+    #define IMAD(a, b, c) ( mul24((a), (b)) + (c) )
 #else
-   //For CC >= 2.0
-   #define IMAD(a, b, c) ( mulhi((a), (b)) + (c) )
+    //For CC >= 2.0
+    #define IMAD(a, b, c) ( mulhi((a), (b)) + (c) )
 #endif
 //////////////////////////////////////////////////////////////////
 
@@ -25,11 +25,21 @@
 
 inline void __checkCudaErrors( cudaError err, const char *file, const int line )
 {
-   if( cudaSuccess != err) {
-      fprintf(stderr, "%s(%i) : CUDA Runtime API error %d: %s.\n",
-              file, line, (int)err, cudaGetErrorString( err ) );
-      exit(-1);
-   }
+    if( cudaSuccess != err) {
+        fprintf(stderr, "%s(%i) : CUDA Runtime API error %d: %s.\n",
+            file, line, (int)err, cudaGetErrorString( err ) );
+        exit(-1);
+    }
 }
 
+static cudaDeviceProp *VSCUDAGetDefaultDeviceProperties() {
+    int deviceID = 0;
+    static int propertiesRetrieved = 0;
+    static cudaDeviceProp deviceProp;
+
+    if(!propertiesRetrieved) {
+        CHECKCUDA(cudaGetDeviceProperties(&deviceProp, deviceID));
+    }
+    return &deviceProp;
+}
 #endif

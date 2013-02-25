@@ -50,6 +50,7 @@ void VSFrameData::transferData(VSFrameData *dst, int dstStride,
                                int srcStride, int width, int height, int bytesPerSample,
                                FrameTransferDirection direction) const {
     cudaMemcpyKind transferKind = (direction == ftdCPUtoGPU ? cudaMemcpyHostToDevice : cudaMemcpyDeviceToHost);
+    qDebug("dstStride: %d, srcStride : %d, width: %d, height: %d, direction: %d", dstStride, srcStride, width, height, direction);
 
     CHECKCUDA(cudaMemcpy2D(dst->data, dstStride, data, srcStride, width * bytesPerSample, height, transferKind));
 }
@@ -67,6 +68,11 @@ VSFrame::VSFrame(const VSFormat * f, int width, int height, const VSFrame * prop
     if (frameLocation != flLocal && frameLocation != flGPU)
         qFatal("Invalid frame location. Please use flLocal or flGPU. Specified: %d", frameLocation);
 
+    if (format->numPlanes != 3) {
+        stride[1] = 0;
+        stride[2] = 0;
+    }
+
     if (frameLocation == flLocal) {
         //Handle CPU implementation.
         //This is a simple copy and paste of the vscore.cpp VSFrame constructor.
@@ -76,9 +82,6 @@ VSFrame::VSFrame(const VSFormat * f, int width, int height, const VSFrame * prop
             int plane23 = ((width >> f->subSamplingW) * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
             stride[1] = plane23;
             stride[2] = plane23;
-        } else {
-            stride[1] = 0;
-            stride[2] = 0;
         }
 
         data[0] = new VSFrameData(stride[0] * height, core->memory);
@@ -95,7 +98,50 @@ VSFrame::VSFrame(const VSFormat * f, int width, int height, const VSFrame * prop
 
             data[plane] =
                 new VSFrameData(compensatedWidth, compensatedHeight, &stride[plane], f->bytesPerSample,
-                                core->gpuMemory, fLocation);
+                                core->gpuMemory, frameLocation);
+        }
+    }
+}
+
+VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation) : format(f), width(width), height(height), frameLocation(fLocation) {
+    if (!f || width <= 0 || height <= 0)
+        qFatal("Invalid new frame");
+
+    if (propSrc)
+        properties = propSrc->properties;
+
+    if (format->numPlanes != 3) {
+        stride[1] = 0;
+        stride[2] = 0;
+    }
+
+    if (frameLocation == flLocal) {
+        //Handle the CPU case.
+        stride[0] = (width * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+
+        if (f->numPlanes == 3) {
+            int plane23 = ((width >> f->subSamplingW) * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+            stride[1] = plane23;
+            stride[2] = plane23;
+        }
+    }
+
+    for (int i = 0; i < format->numPlanes; i++) {
+        if (planeSrc[i]) {
+            if (plane[i] < 0 || plane[i] >= planeSrc[i]->format->numPlanes)
+                qFatal("Plane does no exist, error in frame creation");
+            if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
+                qFatal("Copied plane dimensions do not match, error in frame creation");
+            data[i] = planeSrc[i]->data[plane[i]];
+        } else {
+            int compensatedWidth  = (plane ? width  >> f->subSamplingW : width);
+            int compensatedHeight = (plane ? height >> f->subSamplingH : height);
+
+            if (frameLocation == flLocal)
+                data[i] = new VSFrameData(stride[i] * compensatedHeight, core->memory);
+            else
+                data[i] = new VSFrameData(compensatedWidth, compensatedHeight, &stride[i], f->bytesPerSample,
+                            core->gpuMemory, frameLocation);
         }
     }
 }
@@ -118,6 +164,10 @@ void VSFrame::transferFrame(VSFrame &dstFrame, FrameTransferDirection direction)
 
 PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, FrameLocation fLocation) {
     return PVideoFrame(new VSFrame(f, width, height, propSrc, this, fLocation));
+}
+
+PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc, FrameLocation fLocation) {
+    return PVideoFrame(new VSFrame(f, width, height, planeSrc, planes, propSrc, this, fLocation));
 }
 
 void VSCore::transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction){

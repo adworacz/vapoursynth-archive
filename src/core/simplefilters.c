@@ -3026,6 +3026,10 @@ typedef struct {
 
 const int MergeShift = 15;
 
+#if FEATURE_CUDA
+extern void mergeProcessCUDA(uint8_t *dstp, const uint8_t *srcp1, const uint8_t *srcp2, const int stride, const int width, const int height, const int weight, const int round, const int MergeShift);
+#endif
+
 static void VS_CC mergeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     MergeData *d = (MergeData *)*instanceData;
     vsapi->setVideoInfo(d->vi, 1, node);
@@ -3043,7 +3047,11 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fs[] = { 0, src1, src2 };
         const VSFrameRef *fr[] = {fs[d->process[0]], fs[d->process[1]], fs[d->process[2]]};
+#if FEATURE_CUDA
+        VSFrameRef *dst = vsapi->newVideoFrame4(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, vsapi->getFrameLocation(src1));
+#else
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
+#endif
         int plane;
         int x, y;
         for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
@@ -3060,6 +3068,10 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                 if (d->vi->format->sampleType == stInteger) {
                     const int round = 1 << (MergeShift - 1);
                     if (d->vi->format->bytesPerSample == 1) {
+#if FEATURE_CUDA
+                        //Possibly expand this block in the future to enable simultaneous plane processing.
+                        mergeProcessCUDA(dstp, srcp1, srcp2, stride, w, h, weight, round, MergeShift);
+#else
                         for (y = 0; y < h; y++) {
                             for (x = 0; x < w; x++)
                                 dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
@@ -3067,6 +3079,7 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                             srcp2 += stride;
                             dstp += stride;
                         }
+#endif
                     } else if (d->vi->format->bytesPerSample == 2) {
                         const int round = 1 << (MergeShift - 1);
                         for (y = 0; y < h; y++) {
