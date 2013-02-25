@@ -3047,8 +3047,9 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fs[] = { 0, src1, src2 };
         const VSFrameRef *fr[] = {fs[d->process[0]], fs[d->process[1]], fs[d->process[2]]};
+        const FrameLocation fLocation = vsapi->getFrameLocation(src1);
 #if FEATURE_CUDA
-        VSFrameRef *dst = vsapi->newVideoFrame4(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, vsapi->getFrameLocation(src1));
+        VSFrameRef *dst = vsapi->newVideoFrame4(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
 #else
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
 #endif
@@ -3068,18 +3069,18 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                 if (d->vi->format->sampleType == stInteger) {
                     const int round = 1 << (MergeShift - 1);
                     if (d->vi->format->bytesPerSample == 1) {
-#if FEATURE_CUDA
                         //Possibly expand this block in the future to enable simultaneous plane processing.
-                        mergeProcessCUDA(dstp, srcp1, srcp2, stride, w, h, weight, round, MergeShift);
-#else
-                        for (y = 0; y < h; y++) {
-                            for (x = 0; x < w; x++)
-                                dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
+                        if(fLocation == flGPU)
+                            mergeProcessCUDA(dstp, srcp1, srcp2, stride, w, h, weight, round, MergeShift);
+                        else {
+                            for (y = 0; y < h; y++) {
+                                for (x = 0; x < w; x++)
+                                    dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                dstp += stride;
+                            }
                         }
-#endif
                     } else if (d->vi->format->bytesPerSample == 2) {
                         const int round = 1 << (MergeShift - 1);
                         for (y = 0; y < h; y++) {

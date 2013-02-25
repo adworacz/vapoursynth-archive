@@ -50,7 +50,6 @@ void VSFrameData::transferData(VSFrameData *dst, int dstStride,
                                int srcStride, int width, int height, int bytesPerSample,
                                FrameTransferDirection direction) const {
     cudaMemcpyKind transferKind = (direction == ftdCPUtoGPU ? cudaMemcpyHostToDevice : cudaMemcpyDeviceToHost);
-    qDebug("dstStride: %d, srcStride : %d, width: %d, height: %d, direction: %d", dstStride, srcStride, width, height, direction);
 
     CHECKCUDA(cudaMemcpy2D(dst->data, dstStride, data, srcStride, width * bytesPerSample, height, transferKind));
 }
@@ -134,8 +133,8 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
                 qFatal("Copied plane dimensions do not match, error in frame creation");
             data[i] = planeSrc[i]->data[plane[i]];
         } else {
-            int compensatedWidth  = (plane ? width  >> f->subSamplingW : width);
-            int compensatedHeight = (plane ? height >> f->subSamplingH : height);
+            int compensatedWidth  = (i ? width  >> f->subSamplingW : width);
+            int compensatedHeight = (i ? height >> f->subSamplingH : height);
 
             if (frameLocation == flLocal)
                 data[i] = new VSFrameData(stride[i] * compensatedHeight, core->memory);
