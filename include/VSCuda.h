@@ -38,6 +38,7 @@ static cudaDeviceProp *VSCUDAGetDefaultDeviceProperties() {
     static cudaDeviceProp deviceProp;
 
     if(!propertiesRetrieved) {
+        propertiesRetrieved = 1;
         CHECKCUDA(cudaGetDeviceProperties(&deviceProp, deviceID));
     }
     return &deviceProp;
