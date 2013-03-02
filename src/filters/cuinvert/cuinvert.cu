@@ -86,7 +86,7 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         //For something as simple as an invert, we can probably get away with out creating a
         //new frame, as we can just operate on the source data, but due to the design of
         //Vapoursynth, we don't have that option, so we lose some speed there.
-        VSFrameRef *dst = vsapi->newVideoFrame3(fi, width, height, src, core, flGPU);
+        VSFrameRef *dst = vsapi->newVideoFrameAtLocation(fi, width, height, src, core, flGPU);
 
         invertWithCuda(src, dst, fi, vsapi);
 

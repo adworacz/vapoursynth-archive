@@ -570,6 +570,9 @@ void VSCore::createFilter(const VSMap *in, VSMap *out, const QByteArray &name, V
 }
 
 int64_t VSCore::setMaxCacheSize(int64_t bytes) {
+#if FEATURE_CUDA
+    gpuMemory->setMaxMemoryUse(bytes);
+#endif
     return memory->setMaxMemoryUse(bytes);
 }
 

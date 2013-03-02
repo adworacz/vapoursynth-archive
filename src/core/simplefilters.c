@@ -3049,7 +3049,7 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         const VSFrameRef *fr[] = {fs[d->process[0]], fs[d->process[1]], fs[d->process[2]]};
         const FrameLocation fLocation = vsapi->getFrameLocation(src1);
 #if FEATURE_CUDA
-        VSFrameRef *dst = vsapi->newVideoFrame4(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
+        VSFrameRef *dst = vsapi->newVideoFrameAtLocation2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
 #else
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
 #endif
@@ -3436,7 +3436,7 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
                 return 0;
             }
 
-            VSFrameRef *src_gpu = vsapi->newVideoFrame3(fi, width, height, src, core, flGPU);
+            VSFrameRef *src_gpu = vsapi->newVideoFrameAtLocation(fi, width, height, src, core, flGPU);
             vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core);
             vsapi->freeFrame(src);
 

@@ -121,12 +121,12 @@ static VSFrameRef *VS_CC newVideoFrame(const VSFormat *format, int width, int he
 }
 
 #if FEATURE_CUDA
-static VSFrameRef *VS_CC newVideoFrame3(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation) {
+static VSFrameRef *VS_CC newVideoFrameAtLocation(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation) {
     Q_ASSERT(format);
     return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.data() : NULL, fLocation));
 }
 
-static VSFrameRef *VS_CC newVideoFrame4(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation) {
+static VSFrameRef *VS_CC newVideoFrameAtLocation2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation) {
     Q_ASSERT(format);
     VSFrame *fp[3];
     for (int i = 0; i < format->numPlanes; i++)
@@ -641,8 +641,8 @@ const VSAPI vsapi = {
     &newVideoFrame2,
 
 #if FEATURE_CUDA
-    &newVideoFrame3,
-    &newVideoFrame4,
+    &newVideoFrameAtLocation,
+    &newVideoFrameAtLocation2,
     &transferVideoFrame,
     &getFrameLocation,
 #endif

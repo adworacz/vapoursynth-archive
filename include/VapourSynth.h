@@ -244,8 +244,8 @@ typedef const uint8_t *(VS_CC *VSGetReadPtr)(const VSFrameRef *f, int plane);
 typedef uint8_t *(VS_CC *VSGetWritePtr)(VSFrameRef *f, int plane);
 
 #if FEATURE_CUDA
-typedef VSFrameRef *(VS_CC *VSNewVideoFrame3)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
-typedef VSFrameRef *(VS_CC *VSNewVideoFrame4)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
+typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
+typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation2)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core);
 typedef FrameLocation (VS_CC *VSGetFrameLocation)(const VSFrameRef *f);
 #endif
@@ -388,8 +388,8 @@ struct VSAPI {
     VSNewVideoFrame2 newVideoFrame2;
 
 #if FEATURE_CUDA
-    VSNewVideoFrame3 newVideoFrame3;
-    VSNewVideoFrame4 newVideoFrame4;
+    VSNewVideoFrameAtLocation newVideoFrameAtLocation;
+    VSNewVideoFrameAtLocation2 newVideoFrameAtLocation2;
     VSTransferVideoFrame transferVideoFrame;
     VSGetFrameLocation getFrameLocation;
 #endif
