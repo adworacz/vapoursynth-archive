@@ -503,6 +503,10 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), gpuMemory(new MemoryUse()
     resizeInitialize(::configPlugin, ::registerFunction, p);
     plugins.insert(p->identifier, p);
     p->enableCompat();
+
+#if FEATURE_CUDA
+    gpuManager = new VSGPUManager();
+#endif
 }
 
 VSCore::~VSCore() {

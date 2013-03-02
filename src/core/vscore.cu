@@ -192,3 +192,7 @@ PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, cons
 void VSCore::transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction){
     srcf->transferFrame(*dstf.data(), direction);
 }
+
+const VSGPUManager *VSCore::getGPUManager(){
+    return gpuManager;
+}

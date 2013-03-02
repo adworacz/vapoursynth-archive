@@ -138,10 +138,14 @@ static void VS_CC transferVideoFrame(const VSFrameRef *srcFrame, VSFrameRef *dst
     core->transferVideoFrame(srcFrame->frame, dstFrame->frame, direction);
 }
 
+static const VSGPUManager *VS_CC getGPUManager(VSCore *core) {
+    return core->getGPUManager();
+}
+#endif
+
 static FrameLocation VS_CC getFrameLocation(const VSFrameRef *f) {
     return f->frame->getFrameLocation();
 }
-#endif
 
 static VSFrameRef *VS_CC newVideoFrame2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core) {
     Q_ASSERT(format);
@@ -640,11 +644,13 @@ const VSAPI vsapi = {
     &getOutputIndex,
     &newVideoFrame2,
 
+    &getFrameLocation,
+
 #if FEATURE_CUDA
     &newVideoFrameAtLocation,
     &newVideoFrameAtLocation2,
     &transferVideoFrame,
-    &getFrameLocation,
+    &getGPUManager,
 #endif
 
     &setMessageHandler

@@ -63,6 +63,10 @@ typedef struct VSMap VSMap;
 typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
 
+#if FEATURE_CUDA
+    typedef struct VSGPUManager VSGPUManager;
+#endif
+
 typedef enum VSColorFamily {
     // all planar formats
     cmGray   = 1000000,
@@ -243,11 +247,13 @@ typedef int (VS_CC *VSGetStride)(const VSFrameRef *f, int plane);
 typedef const uint8_t *(VS_CC *VSGetReadPtr)(const VSFrameRef *f, int plane);
 typedef uint8_t *(VS_CC *VSGetWritePtr)(VSFrameRef *f, int plane);
 
+typedef FrameLocation (VS_CC *VSGetFrameLocation)(const VSFrameRef *f);
+
 #if FEATURE_CUDA
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation2)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core);
-typedef FrameLocation (VS_CC *VSGetFrameLocation)(const VSFrameRef *f);
+typedef const VSGPUManager *(VS_CC *VSGetGPUManager)(VSCore *core);
 #endif
 
 // property access
@@ -387,11 +393,13 @@ struct VSAPI {
     VSGetOutputIndex getOutputIndex;
     VSNewVideoFrame2 newVideoFrame2;
 
+    VSGetFrameLocation getFrameLocation;
+
 #if FEATURE_CUDA
     VSNewVideoFrameAtLocation newVideoFrameAtLocation;
     VSNewVideoFrameAtLocation2 newVideoFrameAtLocation2;
     VSTransferVideoFrame transferVideoFrame;
-    VSGetFrameLocation getFrameLocation;
+    VSGetGPUManager getGPUManager;
 #endif
 
     VSSetMessageHandler setMessageHandler;

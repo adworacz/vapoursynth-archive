@@ -33,6 +33,11 @@
 #	include <dlfcn.h>
 #endif
 
+#if FEATURE_CUDA
+    #include "vsgpumanager.h"
+    typedef struct VSGPUManager VSGPUManager;
+#endif
+
 class VSFrame;
 struct VSCore;
 struct VSNode;
@@ -480,9 +485,11 @@ public:
     void copyFrameProps(const PVideoFrame &src, PVideoFrame &dst);
 
 #if FEATURE_CUDA
+    VSGPUManager *gpuManager;
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, FrameLocation fLocation);
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc, FrameLocation fLocation);
     void transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction);
+    const VSGPUManager* getGPUManager();
 #endif
 
     const VSFormat *getFormatPreset(int id);
