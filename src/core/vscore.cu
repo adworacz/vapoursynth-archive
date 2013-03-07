@@ -193,6 +193,6 @@ void VSCore::transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, Fram
     srcf->transferFrame(*dstf.data(), direction);
 }
 
-const VSGPUManager *VSCore::getGPUManager(){
+VSGPUManager *VSCore::getGPUManager() const {
     return gpuManager;
 }

@@ -488,7 +488,7 @@ public:
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, FrameLocation fLocation);
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc, FrameLocation fLocation);
     void transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction);
-    const VSGPUManager* getGPUManager();
+    VSGPUManager* getGPUManager() const;
 #endif
 
     const VSFormat *getFormatPreset(int id);
