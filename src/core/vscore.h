@@ -35,7 +35,6 @@
 
 #if FEATURE_CUDA
     #include "vsgpumanager.h"
-    typedef struct VSGPUManager VSGPUManager;
 #endif
 
 class VSFrame;
