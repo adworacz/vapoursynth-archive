@@ -44,11 +44,11 @@ VSGPUManager::VSGPUManager() {
     if (deviceProps->asyncEngineCount > 0) {
         sendStream = streams[0];
         receiveStream = streams[1];
+        streamIndex = 0;
     } else {
         sendStream = receiveStream = streams[0];
+        streamIndex = 1;
     }
-
-    streamIndex = 2;
 }
 
 void VSGPUManager::getSendStream(cudaStream_t *stream) {
