@@ -25,6 +25,10 @@
 #include "simplefilters.h"
 #include "VSHelper.h"
 
+#if FEATURE_CUDA
+    #include <cuda_runtime.h>
+#endif
+
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
@@ -3050,6 +3054,8 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         const FrameLocation fLocation = vsapi->getFrameLocation(src1);
 #if FEATURE_CUDA
         VSFrameRef *dst = vsapi->newVideoFrameAtLocation2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
+        cudaStream_t streams[1];
+        vsapi->getGPUManager(core)->getStreams(&streams, 1);
 #else
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
 #endif

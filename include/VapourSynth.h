@@ -253,7 +253,7 @@ typedef FrameLocation (VS_CC *VSGetFrameLocation)(const VSFrameRef *f);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation2)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core);
-typedef const VSGPUManager *(VS_CC *VSGetGPUManager)(VSCore *core);
+typedef VSGPUManager *(VS_CC *VSGetGPUManager)(VSCore *core);
 #endif
 
 // property access

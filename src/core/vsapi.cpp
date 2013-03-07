@@ -138,7 +138,7 @@ static void VS_CC transferVideoFrame(const VSFrameRef *srcFrame, VSFrameRef *dst
     core->transferVideoFrame(srcFrame->frame, dstFrame->frame, direction);
 }
 
-static const VSGPUManager *VS_CC getGPUManager(VSCore *core) {
+static VSGPUManager *VS_CC getGPUManager(VSCore *core) {
     return core->getGPUManager();
 }
 #endif
