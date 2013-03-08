@@ -26,16 +26,13 @@
 struct VSGPUManager {
 private:
     cudaStream_t *streams;
-    cudaStream_t sendStream;
-    cudaStream_t receiveStream;
     int numberOfStreams;
     int streamIndex;
     QMutex lock;
 
 public:
-    void getSendStream(cudaStream_t *stream);
-    void getReceiveStream(cudaStream_t *stream);
-    void getStreams(cudaStream_t **desiredStreams, int numStreams);
+    int getStream(cudaStream_t *stream, int index = -1);
+    int getStreams(cudaStream_t **desiredStreams, int numStreams);
 
     VSGPUManager();
     ~VSGPUManager();

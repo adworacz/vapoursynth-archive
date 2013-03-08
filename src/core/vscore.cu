@@ -66,12 +66,13 @@ VSFrameData::~VSFrameData() {
     mem->subtract(size);
 }
 
+//Transfer video frame data asynchronously using the given cudaStream.
 void VSFrameData::transferData(VSFrameData *dst, int dstStride,
                                int srcStride, int width, int height, int bytesPerSample,
-                               FrameTransferDirection direction) const {
+                               FrameTransferDirection direction, cudaStream_t stream) const {
     cudaMemcpyKind transferKind = (direction == ftdCPUtoGPU ? cudaMemcpyHostToDevice : cudaMemcpyDeviceToHost);
 
-    CHECKCUDA(cudaMemcpy2D(dst->data, dstStride, data, srcStride, width * bytesPerSample, height, transferKind));
+    CHECKCUDA(cudaMemcpy2DAsync(dst->data, dstStride, data, srcStride, width * bytesPerSample, height, transferKind, stream));
 }
 
 //Note: future integration can use default parameters to prevent code duplication.
@@ -165,7 +166,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
     }
 }
 
-void VSFrame::transferFrame(VSFrame &dstFrame, FrameTransferDirection direction) const {
+void VSFrame::transferFrame(VSFrame &dstFrame, FrameTransferDirection direction, cudaStream_t stream) const {
     if(dstFrame.width != width || dstFrame.height != height)
         qFatal("The source frame and destination frame dimensions do not match.");
 
@@ -177,7 +178,7 @@ void VSFrame::transferFrame(VSFrame &dstFrame, FrameTransferDirection direction)
     for(int plane = 0; plane < format->numPlanes; plane++) {
         data[plane].data()->transferData(dstFrame.data[plane].data(), dstFrame.stride[plane],
                                                   stride[plane], getWidth(plane),
-                                                  getHeight(plane), format->bytesPerSample, direction);
+                                                  getHeight(plane), format->bytesPerSample, direction, stream);
     }
 }
 
@@ -189,8 +190,8 @@ PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, cons
     return PVideoFrame(new VSFrame(f, width, height, planeSrc, planes, propSrc, this, fLocation));
 }
 
-void VSCore::transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction){
-    srcf->transferFrame(*dstf.data(), direction);
+void VSCore::transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction, cudaStream_t stream){
+    srcf->transferFrame(*dstf.data(), direction, stream);
 }
 
 VSGPUManager *VSCore::getGPUManager() const {

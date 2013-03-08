@@ -64,7 +64,7 @@ typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
 
 #if FEATURE_CUDA
-    typedef struct VSGPUManager VSGPUManager;
+    #include <cuda_runtime.h>
 #endif
 
 typedef enum VSColorFamily {
@@ -252,8 +252,9 @@ typedef FrameLocation (VS_CC *VSGetFrameLocation)(const VSFrameRef *f);
 #if FEATURE_CUDA
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation2)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
-typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core);
-typedef VSGPUManager *(VS_CC *VSGetGPUManager)(VSCore *core);
+typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core, cudaStream_t stream);
+typedef int (VS_CC *VSGetStream)(VSCore *core, cudaStream_t *stream);
+typedef void (VS_CC *VSGetStreamAtIndex)(VSCore *core, cudaStream_t *stream, int index);
 #endif
 
 // property access
@@ -399,7 +400,8 @@ struct VSAPI {
     VSNewVideoFrameAtLocation newVideoFrameAtLocation;
     VSNewVideoFrameAtLocation2 newVideoFrameAtLocation2;
     VSTransferVideoFrame transferVideoFrame;
-    VSGetGPUManager getGPUManager;
+    VSGetStream getStream;
+    VSGetStreamAtIndex getStreamAtIndex;
 #endif
 
     VSSetMessageHandler setMessageHandler;

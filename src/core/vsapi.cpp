@@ -134,12 +134,16 @@ static VSFrameRef *VS_CC newVideoFrameAtLocation2(const VSFormat *format, int wi
     return new VSFrameRef(core->newVideoFrame(format, width, height, fp, planes, propSrc ? propSrc->frame.data() : NULL, fLocation));
 }
 
-static void VS_CC transferVideoFrame(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core){
-    core->transferVideoFrame(srcFrame->frame, dstFrame->frame, direction);
+static void VS_CC transferVideoFrame(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core, cudaStream_t stream){
+    core->transferVideoFrame(srcFrame->frame, dstFrame->frame, direction, stream);
 }
 
-static VSGPUManager *VS_CC getGPUManager(VSCore *core) {
-    return core->getGPUManager();
+static int VS_CC getStream(VSCore *core, cudaStream_t *stream) {
+    return core->getGPUManager()->getStream(stream);
+}
+
+static void VS_CC getStreamAtIndex(VSCore *core, cudaStream_t *stream, int index) {
+    core->getGPUManager()->getStream(stream, index);
 }
 #endif
 
@@ -650,7 +654,8 @@ const VSAPI vsapi = {
     &newVideoFrameAtLocation,
     &newVideoFrameAtLocation2,
     &transferVideoFrame,
-    &getGPUManager,
+    &getStream,
+    &getStreamAtIndex,
 #endif
 
     &setMessageHandler

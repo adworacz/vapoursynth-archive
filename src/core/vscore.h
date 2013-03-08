@@ -232,7 +232,7 @@ public:
 
 #if FEATURE_CUDA
     VSFrameData(int width, int height, int *stride, int bytesPerSample, MemoryUse *mem, FrameLocation fLocation);
-    void transferData(VSFrameData *dst, int dstStride, int srcStride, int width, int height, int bytesPerSample, FrameTransferDirection direction) const;
+    void transferData(VSFrameData *dst, int dstStride, int srcStride, int width, int height, int bytesPerSample, FrameTransferDirection direction, cudaStream_t stream) const;
 #endif
 
 };
@@ -256,7 +256,7 @@ public:
 #ifdef __CUDACC__
     VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation);
     VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation);
-    void transferFrame(VSFrame &dstFrame, FrameTransferDirection direction) const;
+    void transferFrame(VSFrame &dstFrame, FrameTransferDirection direction, cudaStream_t stream) const;
 #endif
 
     VSMap &getProperties() {
@@ -487,7 +487,7 @@ public:
     VSGPUManager *gpuManager;
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, FrameLocation fLocation);
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc, FrameLocation fLocation);
-    void transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction);
+    void transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction, cudaStream_t stream);
     VSGPUManager* getGPUManager() const;
 #endif
 

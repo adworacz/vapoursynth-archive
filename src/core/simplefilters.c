@@ -3054,8 +3054,8 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         const FrameLocation fLocation = vsapi->getFrameLocation(src1);
 #if FEATURE_CUDA
         VSFrameRef *dst = vsapi->newVideoFrameAtLocation2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
-        cudaStream_t streams[1];
-        vsapi->getGPUManager(core)->getStreams(&streams, 1);
+        cudaStream_t stream;
+        vsapi->getStream(core, &stream);
 #else
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
 #endif
@@ -3419,6 +3419,8 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
         const VSFormat *fi = d->vi->format;
         int height = vsapi->getFrameHeight(src, 0);
         int width = vsapi->getFrameWidth(src, 0);
+        cudaStream_t stream;
+        int streamIndex;
 
         if (d->direction == 0) {
             //Create a new CPU/Host frame.
@@ -3427,6 +3429,8 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
                 vsapi->freeNode(d->node);
                 return 0;
             }
+
+            streamIndex = vsapi->propGetInt();
 
             VSFrameRef *src_cpu = vsapi->newVideoFrame(fi, width, height, src, core);
             vsapi->transferVideoFrame(src, src_cpu, ftdGPUtoCPU, core);
@@ -3442,8 +3446,12 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
                 return 0;
             }
 
+            streamIndex = vsapi->getStream(&stream);
+
             VSFrameRef *src_gpu = vsapi->newVideoFrameAtLocation(fi, width, height, src, core, flGPU);
-            vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core);
+            vsapi->propSetInt(vsapi->getFramePropsRW(src_gpu), "_CUDAStreamIndex", streamIndex, paAppend);
+
+            vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core, stream);
             vsapi->freeFrame(src);
 
             return src_gpu;

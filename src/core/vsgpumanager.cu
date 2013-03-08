@@ -40,35 +40,35 @@ VSGPUManager::VSGPUManager() {
     for (int i = 0; i < numberOfStreams; i++)
         cudaStreamCreate(&streams[i]);
 
-    //Reserve our send and receive streams.
-    if (deviceProps->asyncEngineCount > 0) {
-        sendStream = streams[0];
-        receiveStream = streams[1];
-        streamIndex = 0;
-    } else {
-        sendStream = receiveStream = streams[0];
-        streamIndex = 1;
+    //We are going to assign a stream per frame, or per plane,
+    //but either way we need to see what happens when we incorporate lots of streams.
+    streamIndex = 0;
+}
+
+
+int VSGPUManager::getStream(cudaStream_t *stream, int index) {
+    if (index != -1) {
+        return getStreams(&stream, 1);
     }
-}
 
-void VSGPUManager::getSendStream(cudaStream_t *stream) {
-    *stream = sendStream;
-}
-
-void VSGPUManager::getReceiveStream(cudaStream_t *stream) {
-    *stream = receiveStream;
-}
-
-void VSGPUManager::getStreams(cudaStream_t **desiredStreams, int numStreams) {
+    //Grab specific stream.
     lock.lock();
+    *stream = streams[index];
+    lock.unlock();
+    return -1;
+}
+
+int VSGPUManager::getStreams(cudaStream_t **desiredStreams, int numStreams) {
+    lock.lock();
+    int retStreamIndex = streamIndex;
     for (int i = 0; i < numStreams; i++){
         (*desiredStreams)[i] = streams[streamIndex];
 
-        streamIndex++;
-        if (streamIndex > numberOfStreams)
-            streamIndex = 2;
+        streamIndex = (streamIndex + 1) % numberOfStreams;
     }
     lock.unlock();
+
+    return retStreamIndex;
 }
 
 VSGPUManager::~VSGPUManager() {
