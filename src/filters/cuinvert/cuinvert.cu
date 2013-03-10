@@ -36,7 +36,7 @@ static __global__ void invertKernel(const uint8_t * __restrict__ d_srcdata, uint
     ((uint32_t *)d_dstdata)[(dst_pitch / sizeof(uint32_t)) * row + column] = ~((uint32_t *)d_srcdata)[(src_pitch / sizeof(uint32_t)) * row + column];
 }
 
-static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi, const VSAPI *vsapi){
+static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi, const VSAPI *vsapi, cudaStream_t stream){
     int deviceID = 0;
     cudaDeviceProp deviceProp;
     CHECKCUDA(cudaGetDeviceProperties(&deviceProp, deviceID));
@@ -60,7 +60,7 @@ static void invertWithCuda(const VSFrameRef *src, VSFrameRef *dst, const VSForma
         dim3 threads(blockSize, blockSize);
         dim3 grid(ceil((float)w / (threads.x * sizeof(uint32_t))), ceil((float)h / threads.y));
 
-        invertKernel<<<grid, threads>>>(srcp, dstp, w / sizeof(uint32_t), h, src_stride, dst_stride);
+        invertKernel<<<grid, threads, 0, stream>>>(srcp, dstp, w / sizeof(uint32_t), h, src_stride, dst_stride);
     }
 }
 
@@ -88,7 +88,19 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         //Vapoursynth, we don't have that option, so we lose some speed there.
         VSFrameRef *dst = vsapi->newVideoFrameAtLocation(fi, width, height, src, core, flGPU);
 
-        invertWithCuda(src, dst, fi, vsapi);
+        int err = 0;
+        int streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src), "_CUDAStreamIndex", 0, &err);
+        cudaStream_t stream;
+
+        if (!err) {
+            vsapi->getStreamAtIndex(core, &stream, streamIndex);
+            // vsapi->setFilterError("Merge: Unable to retrieve CUDA stream index for frame.", frameCtx);
+            // vsapi->freeNode(d->node1);
+            // vsapi->freeNode(d->node2);
+            // return 0;
+        }
+
+        invertWithCuda(src, dst, fi, vsapi, stream);
 
         vsapi->freeFrame(src);
 
