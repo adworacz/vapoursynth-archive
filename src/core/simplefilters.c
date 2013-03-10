@@ -3060,16 +3060,16 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         //gaurranteed to be done with the work for the second clip by the time we start this filter.
         int err = 0;
         int streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src2), "_CUDAStreamIndex", 0, &err);
+        cudaStream_t stream;
 
-        if (err) {
-            vsapi->setFilterError("Merge: Unable to retrieve CUDA stream index for frame.", frameCtx);
-            vsapi->freeNode(d->node1);
-            vsapi->freeNode(d->node2);
-            return 0;
+        if (!err) {
+            vsapi->getStreamAtIndex(core, &stream, streamIndex);
+            // vsapi->setFilterError("Merge: Unable to retrieve CUDA stream index for frame.", frameCtx);
+            // vsapi->freeNode(d->node1);
+            // vsapi->freeNode(d->node2);
+            // return 0;
         }
 
-        cudaStream_t stream;
-        vsapi->getStreamAtIndex(core, &stream, streamIndex);
 
 #else
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
