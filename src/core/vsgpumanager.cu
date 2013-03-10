@@ -47,7 +47,7 @@ VSGPUManager::VSGPUManager() {
 
 
 int VSGPUManager::getStream(cudaStream_t *stream, int index) {
-    if (index != -1) {
+    if (index == -1) {
         return getStreams(&stream, 1);
     }
 

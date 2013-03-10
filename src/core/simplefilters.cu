@@ -49,7 +49,7 @@ static __global__ void mergeKernel(uint8_t *dstp, const uint8_t *srcp1, const ui
    ((uint32_t *)dstp)[(stride / sizeof(uint32_t)) * row + column] = dst_data;
 }
 
-VS_EXTERN_C void VS_CC mergeProcessCUDA(uint8_t *dstp, const uint8_t *srcp1, const uint8_t *srcp2, const int stride, const int width, const int height, const int weight, const int round, const int MergeShift) {
+VS_EXTERN_C void VS_CC mergeProcessCUDA(uint8_t *dstp, const uint8_t *srcp1, const uint8_t *srcp2, const int stride, const int width, const int height, const int weight, const int round, const int MergeShift, cudaStream_t stream) {
    cudaDeviceProp * deviceProp = VSCUDAGetDefaultDeviceProperties();
 
    int blockSize = (deviceProp->major < 2) ? 16 : 32;
@@ -57,6 +57,6 @@ VS_EXTERN_C void VS_CC mergeProcessCUDA(uint8_t *dstp, const uint8_t *srcp1, con
    dim3 threads(blockSize, blockSize);
    dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
 
-   mergeKernel<<<grid, threads>>>(dstp, srcp1, srcp2, stride, width / sizeof(uint32_t), height, weight, round, MergeShift);
+   mergeKernel<<<grid, threads, 0, stream>>>(dstp, srcp1, srcp2, stride, width / sizeof(uint32_t), height, weight, round, MergeShift);
 }
 

@@ -3031,7 +3031,7 @@ typedef struct {
 const int MergeShift = 15;
 
 #if FEATURE_CUDA
-extern void mergeProcessCUDA(uint8_t *dstp, const uint8_t *srcp1, const uint8_t *srcp2, const int stride, const int width, const int height, const int weight, const int round, const int MergeShift);
+extern void mergeProcessCUDA(uint8_t *dstp, const uint8_t *srcp1, const uint8_t *srcp2, const int stride, const int width, const int height, const int weight, const int round, const int MergeShift, cudaStream_t stream);
 #endif
 
 static void VS_CC mergeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -3054,8 +3054,23 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         const FrameLocation fLocation = vsapi->getFrameLocation(src1);
 #if FEATURE_CUDA
         VSFrameRef *dst = vsapi->newVideoFrameAtLocation2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
+
+
+        //NOTE: We have a potential synchronization issue do to the fact that we have two input clips. We aren't
+        //gaurranteed to be done with the work for the second clip by the time we start this filter.
+        int err = 0;
+        int streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src2), "_CUDAStreamIndex", 0, &err);
+
+        if (err) {
+            vsapi->setFilterError("Merge: Unable to retrieve CUDA stream index for frame.", frameCtx);
+            vsapi->freeNode(d->node1);
+            vsapi->freeNode(d->node2);
+            return 0;
+        }
+
         cudaStream_t stream;
-        vsapi->getStream(core, &stream);
+        vsapi->getStreamAtIndex(core, &stream, streamIndex);
+
 #else
         VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
 #endif
@@ -3077,7 +3092,7 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                     if (d->vi->format->bytesPerSample == 1) {
                         //Possibly expand this block in the future to enable simultaneous plane processing.
                         if(fLocation == flGPU)
-                            mergeProcessCUDA(dstp, srcp1, srcp2, stride, w, h, weight, round, MergeShift);
+                            mergeProcessCUDA(dstp, srcp1, srcp2, stride, w, h, weight, round, MergeShift, stream);
                         else {
                             for (y = 0; y < h; y++) {
                                 for (x = 0; x < w; x++)
@@ -3419,8 +3434,9 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
         const VSFormat *fi = d->vi->format;
         int height = vsapi->getFrameHeight(src, 0);
         int width = vsapi->getFrameWidth(src, 0);
+
         cudaStream_t stream;
-        int streamIndex;
+        int streamIndex = 0;
 
         if (d->direction == 0) {
             //Create a new CPU/Host frame.
@@ -3430,10 +3446,19 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
                 return 0;
             }
 
-            streamIndex = vsapi->propGetInt();
+            int err = 0;
+            streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src), "_CUDAStreamIndex", 0, &err);
+
+            if (err) {
+                vsapi->setFilterError("TransferFrame: Unable to successfully retrieve the CUDA Stream Index.", frameCtx);
+                vsapi->freeNode(d->node);
+                return 0;
+            }
+
+            vsapi->getStreamAtIndex(core, &stream, streamIndex);
 
             VSFrameRef *src_cpu = vsapi->newVideoFrame(fi, width, height, src, core);
-            vsapi->transferVideoFrame(src, src_cpu, ftdGPUtoCPU, core);
+            vsapi->transferVideoFrame(src, src_cpu, ftdGPUtoCPU, core, stream);
             vsapi->freeFrame(src);
 
             return src_cpu;
@@ -3445,13 +3470,16 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
                 vsapi->freeNode(d->node);
                 return 0;
             }
-
-            streamIndex = vsapi->getStream(&stream);
+            streamIndex = vsapi->getStream(core, &stream);
 
             VSFrameRef *src_gpu = vsapi->newVideoFrameAtLocation(fi, width, height, src, core, flGPU);
+
+            //Set the associated CUDA stream information for this frame.
+            //This will then be used by GPU filters down the line.
             vsapi->propSetInt(vsapi->getFramePropsRW(src_gpu), "_CUDAStreamIndex", streamIndex, paAppend);
 
             vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core, stream);
+
             vsapi->freeFrame(src);
 
             return src_gpu;
