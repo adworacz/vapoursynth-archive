@@ -6,6 +6,10 @@ This represents the pre-ist of pre-alphas for CUDA support in Vapoursynth and is
 I repeat, DO NOT USE THIS BRANCH (YET).
 
 TODO (for my use):
-   Change newVideoFrame3/4 to newVideoFrameAtLocation(2)
-   Add support for CUDA streams and possibly async memcpy's.
+   * Cleanup the wscript, as we aren't building all of the filters currently.
+   * Cleanup Merge and TransferFrame, as there is some alpha-ass code in there.
+   * Move as much of the stream handling into the API as possible, including stream retrieval from Frame properties.
+   * Investigate ways to improve perforance with multiple CPU threads.
+   * Port all of the standard library over (the filters that actually operate on the video data).
+   * Add support 9/10/16-bit video to the GPU kernels. (More likely add specific kernels for those cases.)
 
