@@ -37,26 +37,83 @@ static __global__ void mergeKernel(uint8_t *dstp, const uint8_t *srcp1, const ui
     if (column >= width || row >= height)
         return;
 
-   uint32_t src1_data = ((uint32_t *)srcp1)[(stride / sizeof(uint32_t)) * row + column];
-   uint32_t src2_data = ((uint32_t *)srcp2)[(stride / sizeof(uint32_t)) * row + column];
-   uint32_t dst_data = 0;
+    uint32_t src1_data = ((uint32_t *)srcp1)[(stride / sizeof(uint32_t)) * row + column];
+    uint32_t src2_data = ((uint32_t *)srcp2)[(stride / sizeof(uint32_t)) * row + column];
+    uint32_t dst_data = 0;
 
-   for (int i = 0; i < sizeof(uint32_t); i++) {
-      ((uint8_t *)&dst_data)[i] = ((uint8_t *)&src1_data)[i] + (((((uint8_t *)&src2_data)[i] - ((uint8_t *)&src1_data)[i]) * weight + round) >> MergeShift);
-   }
+    for (int i = 0; i < sizeof(uint32_t); i++) {
+       ((uint8_t *)&dst_data)[i] = ((uint8_t *)&src1_data)[i] + (((((uint8_t *)&src2_data)[i] - ((uint8_t *)&src1_data)[i]) * weight + round) >> MergeShift);
+    }
 
-   //dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
-   ((uint32_t *)dstp)[(stride / sizeof(uint32_t)) * row + column] = dst_data;
+    //dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
+    ((uint32_t *)dstp)[(stride / sizeof(uint32_t)) * row + column] = dst_data;
 }
 
-VS_EXTERN_C void VS_CC mergeProcessCUDA(uint8_t *dstp, const uint8_t *srcp1, const uint8_t *srcp2, const int stride, const int width, const int height, const int weight, const int round, const int MergeShift, cudaStream_t stream) {
-   cudaDeviceProp * deviceProp = VSCUDAGetDefaultDeviceProperties();
+typedef struct {
+    VSNodeRef *node1;
+    VSNodeRef *node2;
+    const VSVideoInfo *vi;
+    int weight[3];
+    float fweight[3];
+    int process[3];
+} MergeData;
 
-   int blockSize = (deviceProp->major < 2) ? 16 : 32;
+VS_EXTERN_C void VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const int *pl, const VSFrameRef **fr, const MergeData *d, const int MergeShift, VSCore *core, const VSAPI *vsapi) {
+    cudaDeviceProp * deviceProp = VSCUDAGetDefaultDeviceProperties();
+    int blockSize = (deviceProp->major < 2) ? 16 : 32;
 
-   dim3 threads(blockSize, blockSize);
-   dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
+    dim3 threads(blockSize, blockSize);
 
-   mergeKernel<<<grid, threads, 0, stream>>>(dstp, srcp1, srcp2, stride, width / sizeof(uint32_t), height, weight, round, MergeShift);
+    int err = 0;
+    int streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src2), "_CUDAStreamIndex", 0, &err);
+    cudaStream_t stream;
+
+    if (!err) {
+        vsapi->getStreamAtIndex(core, &stream, streamIndex);
+        // vsapi->setFilterError("Merge: Unable to retrieve CUDA stream index for frame.", frameCtx);
+        // vsapi->freeNode(d->node1);
+        // vsapi->freeNode(d->node2);
+        // return 0;
+    }
+
+    for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
+        if (d->process[plane] == 0) {
+            int weight = d->weight[plane];
+            // float fweight = d->fweight[plane];
+            int height = vsapi->getFrameHeight(src1, plane);
+            int width = vsapi->getFrameWidth(src2, plane);
+            int stride = vsapi->getStride(src1, plane);
+            const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
+            const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
+            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+
+            if (d->vi->format->sampleType == stInteger) {
+                const int round = 1 << (MergeShift - 1);
+                if (d->vi->format->bytesPerSample == 1) {
+                    dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
+
+                    mergeKernel<<<grid, threads, 0, stream>>>(dstp, srcp1, srcp2, stride, width / sizeof(uint32_t), height, weight, round, MergeShift);
+                } else if (d->vi->format->bytesPerSample == 2) {
+                  // const int round = 1 << (MergeShift - 1);
+                  // for (y = 0; y < h; y++) {
+                  //     for (x = 0; x < w; x++)
+                  //         ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x] - ((const uint16_t *)srcp1)[x]) * weight + round) >> MergeShift);
+                  //     srcp1 += stride;
+                  //     srcp2 += stride;
+                  //     dstp += stride;
+                  // }
+                }
+            } else if (d->vi->format->sampleType == stFloat) {
+              // if (d->vi->format->bytesPerSample == 4) {
+              //     for (y = 0; y < h; y++) {
+              //         for (x = 0; x < w; x++)
+              //             ((float *)dstp)[x] = (((const float *)srcp1)[x] + (((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * fweight);
+              //         srcp1 += stride;
+              //         srcp2 += stride;
+              //         dstp += stride;
+              //     }
+              // }
+            }
+        }
+    }
 }
-

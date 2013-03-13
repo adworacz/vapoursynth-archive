@@ -25,10 +25,6 @@
 #include "simplefilters.h"
 #include "VSHelper.h"
 
-#if FEATURE_CUDA
-    #include <cuda_runtime.h>
-#endif
-
 #define RETERROR(x) do { vsapi->setError(out, (x)); return; } while (0)
 #define MAX(a, b)  (((a) > (b)) ? (a) : (b))
 #define MIN(a, b)  (((a) < (b)) ? (a) : (b))
@@ -3031,7 +3027,7 @@ typedef struct {
 const int MergeShift = 15;
 
 #if FEATURE_CUDA
-extern void mergeProcessCUDA(uint8_t *dstp, const uint8_t *srcp1, const uint8_t *srcp2, const int stride, const int width, const int height, const int weight, const int round, const int MergeShift, cudaStream_t stream);
+extern void mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const int *pl, const VSFrameRef **fr, const MergeData *d, const int MergeShift, VSCore *core, const VSAPI *vsapi);
 #endif
 
 static void VS_CC mergeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -3052,48 +3048,33 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         const VSFrameRef *fs[] = { 0, src1, src2 };
         const VSFrameRef *fr[] = {fs[d->process[0]], fs[d->process[1]], fs[d->process[2]]};
         const FrameLocation fLocation = vsapi->getFrameLocation(src1);
+        VSFrameRef *dst = NULL;
+
+        if (fLocation == flGPU) {
 #if FEATURE_CUDA
-        VSFrameRef *dst = vsapi->newVideoFrameAtLocation2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
-
-
-        //NOTE: We have a potential synchronization issue do to the fact that we have two input clips. We aren't
-        //gaurranteed to be done with the work for the second clip by the time we start this filter.
-        int err = 0;
-        int streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src2), "_CUDAStreamIndex", 0, &err);
-        cudaStream_t stream;
-
-        if (!err) {
-            vsapi->getStreamAtIndex(core, &stream, streamIndex);
-            // vsapi->setFilterError("Merge: Unable to retrieve CUDA stream index for frame.", frameCtx);
-            // vsapi->freeNode(d->node1);
-            // vsapi->freeNode(d->node2);
-            // return 0;
-        }
-
-
-#else
-        VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
+            dst = vsapi->newVideoFrameAtLocation2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
+            mergeProcessCUDA(src1, src2, dst, pl, fr, d, MergeShift, core, vsapi);
 #endif
-        int plane;
-        int x, y;
-        for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
-            if (d->process[plane] == 0) {
-                int weight = d->weight[plane];
-                float fweight = d->fweight[plane];
-                int h = vsapi->getFrameHeight(src1, plane);
-                int w = vsapi->getFrameWidth(src2, plane);
-                int stride = vsapi->getStride(src1, plane);
-                const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
-                const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+        }
+        else {
+            dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
 
-                if (d->vi->format->sampleType == stInteger) {
-                    const int round = 1 << (MergeShift - 1);
-                    if (d->vi->format->bytesPerSample == 1) {
-                        //Possibly expand this block in the future to enable simultaneous plane processing.
-                        if(fLocation == flGPU)
-                            mergeProcessCUDA(dstp, srcp1, srcp2, stride, w, h, weight, round, MergeShift, stream);
-                        else {
+            int plane;
+            int x, y;
+            for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
+                if (d->process[plane] == 0) {
+                    int weight = d->weight[plane];
+                    float fweight = d->fweight[plane];
+                    int h = vsapi->getFrameHeight(src1, plane);
+                    int w = vsapi->getFrameWidth(src2, plane);
+                    int stride = vsapi->getStride(src1, plane);
+                    const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
+                    const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
+                    uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+
+                    if (d->vi->format->sampleType == stInteger) {
+                        const int round = 1 << (MergeShift - 1);
+                        if (d->vi->format->bytesPerSample == 1) {
                             for (y = 0; y < h; y++) {
                                 for (x = 0; x < w; x++)
                                     dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
@@ -3101,30 +3082,31 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
                                 srcp2 += stride;
                                 dstp += stride;
                             }
+                        } else if (d->vi->format->bytesPerSample == 2) {
+                            const int round = 1 << (MergeShift - 1);
+                            for (y = 0; y < h; y++) {
+                                for (x = 0; x < w; x++)
+                                    ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x] - ((const uint16_t *)srcp1)[x]) * weight + round) >> MergeShift);
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                dstp += stride;
+                            }
                         }
-                    } else if (d->vi->format->bytesPerSample == 2) {
-                        const int round = 1 << (MergeShift - 1);
-                        for (y = 0; y < h; y++) {
-                            for (x = 0; x < w; x++)
-                                ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x] - ((const uint16_t *)srcp1)[x]) * weight + round) >> MergeShift);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
-                        }
-                    }
-                } else if (d->vi->format->sampleType == stFloat) {
-                    if (d->vi->format->bytesPerSample == 4) {
-                        for (y = 0; y < h; y++) {
-                            for (x = 0; x < w; x++)
-                                ((float *)dstp)[x] = (((const float *)srcp1)[x] + (((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * fweight);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            dstp += stride;
+                    } else if (d->vi->format->sampleType == stFloat) {
+                        if (d->vi->format->bytesPerSample == 4) {
+                            for (y = 0; y < h; y++) {
+                                for (x = 0; x < w; x++)
+                                    ((float *)dstp)[x] = (((const float *)srcp1)[x] + (((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * fweight);
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                dstp += stride;
+                            }
                         }
                     }
                 }
             }
         }
+
 
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
