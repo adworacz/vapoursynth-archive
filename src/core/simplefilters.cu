@@ -58,23 +58,20 @@ typedef struct {
     int process[3];
 } MergeData;
 
-VS_EXTERN_C void VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const int *pl, const VSFrameRef **fr, const MergeData *d, const int MergeShift, VSCore *core, const VSAPI *vsapi) {
-    cudaDeviceProp * deviceProp = VSCUDAGetDefaultDeviceProperties();
-    int blockSize = (deviceProp->major < 2) ? 16 : 32;
-
+VS_EXTERN_C int VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const int *pl, const VSFrameRef **fr, const MergeData *d, const int MergeShift, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    int blockSize = VSCUDAGetBasicBlocksize();
     dim3 threads(blockSize, blockSize);
 
     int err = 0;
     int streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src2), "_CUDAStreamIndex", 0, &err);
     cudaStream_t stream;
 
-    if (!err) {
-        vsapi->getStreamAtIndex(core, &stream, streamIndex);
-        // vsapi->setFilterError("Merge: Unable to retrieve CUDA stream index for frame.", frameCtx);
-        // vsapi->freeNode(d->node1);
-        // vsapi->freeNode(d->node2);
-        // return 0;
+    if (err) {
+        vsapi->setFilterError("mergeProcessCUDA: Unable to retrieve CUDA stream for frame.", frameCtx);
+        return 0;
     }
+
+    vsapi->getStreamAtIndex(core, &stream, streamIndex);
 
     for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
         if (d->process[plane] == 0) {
@@ -116,4 +113,6 @@ VS_EXTERN_C void VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef
             }
         }
     }
+
+    return 1;
 }

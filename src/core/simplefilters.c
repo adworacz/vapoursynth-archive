@@ -3027,7 +3027,7 @@ typedef struct {
 const int MergeShift = 15;
 
 #if FEATURE_CUDA
-extern void mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const int *pl, const VSFrameRef **fr, const MergeData *d, const int MergeShift, VSCore *core, const VSAPI *vsapi);
+extern int mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const int *pl, const VSFrameRef **fr, const MergeData *d, const int MergeShift, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 #endif
 
 static void VS_CC mergeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -3053,7 +3053,12 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
-            mergeProcessCUDA(src1, src2, dst, pl, fr, d, MergeShift, core, vsapi);
+            if (!mergeProcessCUDA(src1, src2, dst, pl, fr, d, MergeShift, frameCtx, core, vsapi)) {
+                vsapi->freeFrame(src1);
+                vsapi->freeFrame(src2);
+                vsapi->freeFrame(dst);
+                return 0;
+            }
 #endif
         }
         else {

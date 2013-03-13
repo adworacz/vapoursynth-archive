@@ -62,4 +62,10 @@ static cudaDeviceProp *VSCUDAGetDefaultDeviceProperties() {
     }
     return &deviceProp;
 }
+
+static inline int VSCUDAGetBasicBlocksize() {
+    cudaDeviceProp * deviceProp = VSCUDAGetDefaultDeviceProperties();
+    return (deviceProp->major < 2) ? 16 : 32;
+}
+
 #endif
