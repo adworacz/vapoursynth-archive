@@ -3435,7 +3435,6 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
         int height = vsapi->getFrameHeight(src, 0);
         int width = vsapi->getFrameWidth(src, 0);
 
-        cudaStream_t stream;
         int streamIndex = 0;
 
         if (d->direction == 0) {
@@ -3455,10 +3454,8 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
                 return 0;
             }
 
-            vsapi->getStreamAtIndex(core, &stream, streamIndex);
-
             VSFrameRef *src_cpu = vsapi->newVideoFrame(fi, width, height, src, core);
-            vsapi->transferVideoFrame(src, src_cpu, ftdGPUtoCPU, core, stream);
+            vsapi->transferVideoFrame(src, src_cpu, ftdGPUtoCPU, core);
             vsapi->freeFrame(src);
 
             return src_cpu;
@@ -3470,6 +3467,7 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
                 vsapi->freeNode(d->node);
                 return 0;
             }
+            cudaStream_t stream;
             streamIndex = vsapi->getStream(core, &stream);
 
             VSFrameRef *src_gpu = vsapi->newVideoFrameAtLocation(fi, width, height, src, core, flGPU);
@@ -3478,7 +3476,7 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
             //This will then be used by GPU filters down the line.
             vsapi->propSetInt(vsapi->getFramePropsRW(src_gpu), "_CUDAStreamIndex", streamIndex, paAppend);
 
-            vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core, stream);
+            vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core);
 
             vsapi->freeFrame(src);
 

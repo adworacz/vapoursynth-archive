@@ -134,8 +134,8 @@ static VSFrameRef *VS_CC newVideoFrameAtLocation2(const VSFormat *format, int wi
     return new VSFrameRef(core->newVideoFrame(format, width, height, fp, planes, propSrc ? propSrc->frame.data() : NULL, fLocation));
 }
 
-static void VS_CC transferVideoFrame(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core, cudaStream_t stream){
-    core->transferVideoFrame(srcFrame->frame, dstFrame->frame, direction, stream);
+static void VS_CC transferVideoFrame(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core){
+    core->transferVideoFrame(srcFrame->frame, dstFrame->frame, direction);
 }
 
 static int VS_CC getStream(VSCore *core, cudaStream_t *stream) {

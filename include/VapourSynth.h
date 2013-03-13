@@ -252,7 +252,7 @@ typedef FrameLocation (VS_CC *VSGetFrameLocation)(const VSFrameRef *f);
 #if FEATURE_CUDA
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation2)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
-typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core, cudaStream_t stream);
+typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core);
 typedef int (VS_CC *VSGetStream)(VSCore *core, cudaStream_t *stream);
 typedef void (VS_CC *VSGetStreamAtIndex)(VSCore *core, cudaStream_t *stream, int index);
 #endif
