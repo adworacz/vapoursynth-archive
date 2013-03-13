@@ -387,14 +387,15 @@ def build(bld):
             install_path = '${DOCDIR}')
 
     if bld.env.EXAMPLES == 'true':
-        bld(features = 'c cxxshlib',
-            includes = 'include',
-            source = os.path.join('sdk', 'filter_skeleton.c'),
-            target = 'example_skeleton',
-            install_path = None)
+        # bld(features = 'c cxxshlib',
+        #     includes = 'include',
+        #     source = os.path.join('sdk', 'filter_skeleton.c'),
+        #     target = 'example_skeleton',
+        #     install_path = None)
 
         bld(features = 'c cxxshlib',
             includes = 'include',
+            use = ['CUDA', 'CUDART'], # REMOVE THIS LATER
             source = os.path.join('sdk', 'invert_example.c'),
             target = 'example_invert',
             install_path = None)
