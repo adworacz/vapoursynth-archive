@@ -255,6 +255,7 @@ typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation2)(const VSFormat *format, 
 typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core);
 typedef int (VS_CC *VSGetStream)(VSCore *core, cudaStream_t *stream);
 typedef void (VS_CC *VSGetStreamAtIndex)(VSCore *core, cudaStream_t *stream, int index);
+typedef cudaStream_t (VS_CC *VSGetStreamForFrame)(const VSFrameRef *frame, VSFrameContext *frameCtx, VSCore *core);
 #endif
 
 // property access
@@ -402,6 +403,7 @@ struct VSAPI {
     VSTransferVideoFrame transferVideoFrame;
     VSGetStream getStream;
     VSGetStreamAtIndex getStreamAtIndex;
+    VSGetStreamForFrame getStreamForFrame;
 #endif
 
     VSSetMessageHandler setMessageHandler;

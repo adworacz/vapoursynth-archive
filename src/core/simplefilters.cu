@@ -62,16 +62,11 @@ VS_EXTERN_C int VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef 
     int blockSize = VSCUDAGetBasicBlocksize();
     dim3 threads(blockSize, blockSize);
 
-    int err = 0;
-    int streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src2), "_CUDAStreamIndex", 0, &err);
-    cudaStream_t stream;
+    cudaStream_t stream = vsapi->getStreamForFrame(src2, frameCtx, core);
 
-    if (err) {
-        vsapi->setFilterError("mergeProcessCUDA: Unable to retrieve CUDA stream for frame.", frameCtx);
+    if (stream == 0) {
         return 0;
     }
-
-    vsapi->getStreamAtIndex(core, &stream, streamIndex);
 
     for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
         if (d->process[plane] == 0) {

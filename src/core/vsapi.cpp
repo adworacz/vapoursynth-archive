@@ -120,33 +120,6 @@ static VSFrameRef *VS_CC newVideoFrame(const VSFormat *format, int width, int he
     return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.data() : NULL));
 }
 
-#if FEATURE_CUDA
-static VSFrameRef *VS_CC newVideoFrameAtLocation(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation) {
-    Q_ASSERT(format);
-    return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.data() : NULL, fLocation));
-}
-
-static VSFrameRef *VS_CC newVideoFrameAtLocation2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation) {
-    Q_ASSERT(format);
-    VSFrame *fp[3];
-    for (int i = 0; i < format->numPlanes; i++)
-        fp[i] = planeSrc[i] ? planeSrc[i]->frame.data() : NULL;
-    return new VSFrameRef(core->newVideoFrame(format, width, height, fp, planes, propSrc ? propSrc->frame.data() : NULL, fLocation));
-}
-
-static void VS_CC transferVideoFrame(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core){
-    core->transferVideoFrame(srcFrame->frame, dstFrame->frame, direction);
-}
-
-static int VS_CC getStream(VSCore *core, cudaStream_t *stream) {
-    return core->getGPUManager()->getStream(stream);
-}
-
-static void VS_CC getStreamAtIndex(VSCore *core, cudaStream_t *stream, int index) {
-    core->getGPUManager()->getStream(stream, index);
-}
-#endif
-
 static FrameLocation VS_CC getFrameLocation(const VSFrameRef *f) {
     return f->frame->getFrameLocation();
 }
@@ -442,6 +415,7 @@ static int VS_CC propSetFrame(VSMap *props, const char *name, const VSFrameRef *
     return 0;
 }
 
+
 static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) {
     Q_ASSERT(plugin);
     return new VSMap(plugin->invoke(name, *args));
@@ -571,6 +545,48 @@ static void VS_CC setMessageHandler(VSMessageHandler handler) {
     }
 }
 
+#if FEATURE_CUDA
+static VSFrameRef *VS_CC newVideoFrameAtLocation(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation) {
+    Q_ASSERT(format);
+    return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.data() : NULL, fLocation));
+}
+
+static VSFrameRef *VS_CC newVideoFrameAtLocation2(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation) {
+    Q_ASSERT(format);
+    VSFrame *fp[3];
+    for (int i = 0; i < format->numPlanes; i++)
+        fp[i] = planeSrc[i] ? planeSrc[i]->frame.data() : NULL;
+    return new VSFrameRef(core->newVideoFrame(format, width, height, fp, planes, propSrc ? propSrc->frame.data() : NULL, fLocation));
+}
+
+static void VS_CC transferVideoFrame(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core){
+    core->transferVideoFrame(srcFrame->frame, dstFrame->frame, direction);
+}
+
+static int VS_CC getStream(VSCore *core, cudaStream_t *stream) {
+    return core->getGPUManager()->getStream(stream);
+}
+
+static void VS_CC getStreamAtIndex(VSCore *core, cudaStream_t *stream, int index) {
+    core->getGPUManager()->getStream(stream, index);
+}
+
+static cudaStream_t VS_CC getStreamForFrame(const VSFrameRef *frame, VSFrameContext *frameCtx, VSCore *core) {
+    int err = 0;
+    int streamIndex = propGetInt(getFramePropsRO(frame), "_CUDAStreamIndex", 0, &err);
+    cudaStream_t stream;
+
+    if (err) {
+        setFilterError("getStreamForFrame: Unable to retrieve CUDA stream for frame.", frameCtx);
+        return 0;
+    }
+
+    getStreamAtIndex(core, &stream, streamIndex);
+
+    return stream;
+}
+#endif
+
 const VSAPI vsapi = {
     &createCore,
     &freeCore,
@@ -656,6 +672,7 @@ const VSAPI vsapi = {
     &transferVideoFrame,
     &getStream,
     &getStreamAtIndex,
+    &getStreamForFrame,
 #endif
 
     &setMessageHandler

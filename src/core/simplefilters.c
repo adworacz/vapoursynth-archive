@@ -3422,21 +3422,10 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
         int height = vsapi->getFrameHeight(src, 0);
         int width = vsapi->getFrameWidth(src, 0);
 
-        int streamIndex = 0;
-
         if (d->direction == 0) {
             //Create a new CPU/Host frame.
             if (vsapi->getFrameLocation(src) == flLocal) {
                 vsapi->setFilterError("TransferFrame: Attempted to transfer a CPU frame to a CPU frame. Check your direction.", frameCtx);
-                vsapi->freeNode(d->node);
-                return 0;
-            }
-
-            int err = 0;
-            streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src), "_CUDAStreamIndex", 0, &err);
-
-            if (err) {
-                vsapi->setFilterError("TransferFrame: Unable to successfully retrieve the CUDA Stream Index.", frameCtx);
                 vsapi->freeNode(d->node);
                 return 0;
             }
@@ -3454,14 +3443,13 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
                 vsapi->freeNode(d->node);
                 return 0;
             }
-            cudaStream_t stream;
-            streamIndex = vsapi->getStream(core, &stream);
 
             VSFrameRef *src_gpu = vsapi->newVideoFrameAtLocation(fi, width, height, src, core, flGPU);
 
             //Set the associated CUDA stream information for this frame.
             //This will then be used by GPU filters down the line.
-            vsapi->propSetInt(vsapi->getFramePropsRW(src_gpu), "_CUDAStreamIndex", streamIndex, paAppend);
+            cudaStream_t stream;
+            vsapi->propSetInt(vsapi->getFramePropsRW(src_gpu), "_CUDAStreamIndex", vsapi->getStream(core, &stream), paAppend);
 
             vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core);
 
