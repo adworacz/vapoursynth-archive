@@ -255,6 +255,10 @@ typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation2)(const VSFormat *format, 
 typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core);
 typedef int (VS_CC *VSGetStream)(VSCore *core, cudaStream_t *stream);
 typedef void (VS_CC *VSGetStreamAtIndex)(VSCore *core, cudaStream_t *stream, int index);
+
+//Unfortunately, this causes a dependency on the CUDA libs.
+//This forces CPU-only filters to import a library that they don't need.
+//Ideally, we can get around this somehow...
 typedef cudaStream_t (VS_CC *VSGetStreamForFrame)(const VSFrameRef *frame, VSFrameContext *frameCtx, VSCore *core);
 #endif
 

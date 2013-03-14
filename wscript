@@ -349,25 +349,25 @@ def build(bld):
             install_path = '${LIBDIR}')
 
     if bld.env.FILTERS == 'true':
-        # bld(features = 'c qxx asm cxxshlib',
-        #     includes = 'include',
-        #     source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'eedi3')])),
-        #     target = 'eedi3',
-        #     install_path = '${PLUGINDIR}')
+        bld(features = 'c qxx asm cxxshlib',
+            includes = 'include',
+            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'eedi3')])),
+            target = 'eedi3',
+            install_path = '${PLUGINDIR}')
 
-        # bld(features = 'c qxx asm cxxshlib',
-        #     includes = 'include',
-        #     source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'vivtc')])),
-        #     target = 'vivtc',
-        #     install_path = '${PLUGINDIR}')
+        bld(features = 'c qxx asm cxxshlib',
+            includes = 'include',
+            source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'vivtc')])),
+            target = 'vivtc',
+            install_path = '${PLUGINDIR}')
 
-        # if bld.env.LIB_ASS:
-        #     bld(features = 'c cxxshlib',
-        #         includes = 'include',
-        #         use = ['ASS'],
-        #         source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'assvapour')])),
-        #         target = 'assvapour',
-        #         install_path = '${PLUGINDIR}')
+        if bld.env.LIB_ASS:
+            bld(features = 'c cxxshlib',
+                includes = 'include',
+                use = ['ASS'],
+                source = bld.path.ant_glob(search_paths([os.path.join('src', 'filters', 'assvapour')])),
+                target = 'assvapour',
+                install_path = '${PLUGINDIR}')
 
         bld(features = 'cxx cxxshlib',
             includes = 'include',
@@ -387,11 +387,11 @@ def build(bld):
             install_path = '${DOCDIR}')
 
     if bld.env.EXAMPLES == 'true':
-        # bld(features = 'c cxxshlib',
-        #     includes = 'include',
-        #     source = os.path.join('sdk', 'filter_skeleton.c'),
-        #     target = 'example_skeleton',
-        #     install_path = None)
+        bld(features = 'c cxxshlib',
+            includes = 'include',
+            source = os.path.join('sdk', 'filter_skeleton.c'),
+            target = 'example_skeleton',
+            install_path = None)
 
         bld(features = 'c cxxshlib',
             includes = 'include',
