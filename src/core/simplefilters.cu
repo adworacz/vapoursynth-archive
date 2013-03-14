@@ -30,7 +30,7 @@
 //operating on them, and then sending them back to the destination.
 //This is done to achieve coalesced memory accesses, which are crucial for
 //high performance in CUDA.
-static __global__ void mergeKernel(uint8_t *dstp, const uint8_t *srcp1, const uint8_t *srcp2, const int stride, const int width, const int height, const int weight, const int round, const int MergeShift){
+static __global__ void mergeKernel(uint8_t * __restrict__ dstp, const uint8_t * __restrict__ srcp1, const uint8_t * __restrict__ srcp2, const int stride, const int width, const int height, const int weight, const int round, const int MergeShift){
     const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
 
