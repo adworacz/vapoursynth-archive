@@ -140,15 +140,15 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
         stride[2] = 0;
     }
 
-    if (frameLocation == flLocal) {
-        //Handle the CPU case.
-        stride[0] = (width * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+    //Calculate the stride.
+    //WARNING: This stride gets over written when allocating on the GPU, in order to meet
+    //GPU memory alignment requirements.
+    stride[0] = (width * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
 
-        if (f->numPlanes == 3) {
-            int plane23 = ((width >> f->subSamplingW) * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
-            stride[1] = plane23;
-            stride[2] = plane23;
-        }
+    if (f->numPlanes == 3) {
+        int plane23 = ((width >> f->subSamplingW) * (f->bytesPerSample) + (alignment - 1)) & ~(alignment - 1);
+        stride[1] = plane23;
+        stride[2] = plane23;
     }
 
     for (int i = 0; i < format->numPlanes; i++) {
@@ -158,6 +158,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
             if (planeSrc[i]->getHeight(plane[i]) != getHeight(i) || planeSrc[i]->getWidth(plane[i]) != getWidth(i))
                 qFatal("Copied plane dimensions do not match, error in frame creation");
             data[i] = planeSrc[i]->data[plane[i]];
+            stride[i] = planeSrc[i]->stride[plane[i]];
         } else {
             int compensatedWidth  = (i ? width  >> f->subSamplingW : width);
             int compensatedHeight = (i ? height >> f->subSamplingH : height);

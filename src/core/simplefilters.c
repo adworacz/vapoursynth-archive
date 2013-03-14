@@ -1838,6 +1838,10 @@ typedef struct {
     int process[3];
 } LutData;
 
+#if FEATURE_CUDA
+extern int VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi, const LutData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+#endif
+
 static void VS_CC lutInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     LutData *d = (LutData *) * instanceData;
     vsapi->setVideoInfo(d->vi, 1, node);
@@ -1855,40 +1859,56 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
         const VSFormat *fi = vsapi->getFrameFormat(src);
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fr[] = {d->process[0] ? 0 : src, d->process[1] ? 0 : src, d->process[2] ? 0 : src};
-        VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
+        const FrameLocation fLocation = vsapi->getFrameLocation(src);
 
-        for (plane = 0; plane < fi->numPlanes; plane++) {
-            const uint8_t *srcp = vsapi->getReadPtr(src, plane);
-            int src_stride = vsapi->getStride(src, plane);
-            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            int dst_stride = vsapi->getStride(dst, plane);
-            int h = vsapi->getFrameHeight(src, plane);
+        VSFrameRef *dst = NULL;
 
-            if (d->process[plane]) {
+        if (fLocation == flGPU) {
+#if FEATURE_CUDA
+            dst = vsapi->newVideoFrameAtLocation2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core, fLocation);
 
-                int hl;
-                int w = vsapi->getFrameWidth(src, plane);
-                int x;
+            if (!lutProcessCUDA(src, dst, fi, d, frameCtx, core, vsapi)) {
+                vsapi->freeFrame(src);
+                vsapi->freeFrame(dst);
+                return 0;
+            }
+#endif
+        } else {
+            dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
 
-                if (fi->bytesPerSample == 1) {
-                    const uint8_t *lut = (uint8_t *)d->lut;
+            for (plane = 0; plane < fi->numPlanes; plane++) {
+                const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+                int src_stride = vsapi->getStride(src, plane);
+                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+                int dst_stride = vsapi->getStride(dst, plane);
+                int h = vsapi->getFrameHeight(src, plane);
 
-                    for (hl = 0; hl < h; hl++) {
-                        for (x = 0; x < w; x++)
-                            dstp[x] =  lut[srcp[x]];
+                if (d->process[plane]) {
 
-                        dstp += dst_stride;
-                        srcp += src_stride;
-                    }
-                } else {
-                    const uint16_t *lut = (uint16_t *)d->lut;
+                    int hl;
+                    int w = vsapi->getFrameWidth(src, plane);
+                    int x;
 
-                    for (hl = 0; hl < h; hl++) {
-                        for (x = 0; x < w; x++)
-                            ((uint16_t *)dstp)[x] =  lut[srcp[x]];
+                    if (fi->bytesPerSample == 1) {
+                        const uint8_t *lut = (uint8_t *)d->lut;
 
-                        dstp += dst_stride;
-                        srcp += src_stride;
+                        for (hl = 0; hl < h; hl++) {
+                            for (x = 0; x < w; x++)
+                                dstp[x] =  lut[srcp[x]];
+
+                            dstp += dst_stride;
+                            srcp += src_stride;
+                        }
+                    } else {
+                        const uint16_t *lut = (uint16_t *)d->lut;
+
+                        for (hl = 0; hl < h; hl++) {
+                            for (x = 0; x < w; x++)
+                                ((uint16_t *)dstp)[x] =  lut[srcp[x]];
+
+                            dstp += dst_stride;
+                            srcp += src_stride;
+                        }
                     }
                 }
             }
@@ -3429,7 +3449,6 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
                 vsapi->freeNode(d->node);
                 return 0;
             }
-
             VSFrameRef *src_cpu = vsapi->newVideoFrame(fi, width, height, src, core);
             vsapi->transferVideoFrame(src, src_cpu, ftdGPUtoCPU, core);
             vsapi->freeFrame(src);
