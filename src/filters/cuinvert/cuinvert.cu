@@ -77,30 +77,54 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
         int width = vsapi->getFrameWidth(src, 0);
         int height = vsapi->getFrameHeight(src, 0);
 
-        if (vsapi->getFrameLocation(src) != flGPU) {
-            vsapi->setFilterError("cuinvert: A source frame is not located on the GPU for this GPU-only function.", frameCtx);
-            vsapi->freeNode(d->node);
-            return 0;
+        VSFrameRef *dst = NULL;
+
+        if (vsapi->getFrameLocation(src) == flGPU) {
+            //For something as simple as an invert, we can probably get away with out creating a
+            //new frame, as we can just operate on the source data, but due to the design of
+            //Vapoursynth, we don't have that option, so we lose some speed there.
+            dst = vsapi->newVideoFrameAtLocation(fi, width, height, src, core, flGPU);
+
+            int err = 0;
+            int streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src), "_CUDAStreamIndex", 0, &err);
+            cudaStream_t stream;
+
+            if (!err) {
+                vsapi->getStreamAtIndex(core, &stream, streamIndex);
+                // vsapi->setFilterError("Merge: Unable to retrieve CUDA stream index for frame.", frameCtx);
+                // vsapi->freeNode(d->node1);
+                // vsapi->freeNode(d->node2);
+                // return 0;
+            }
+
+            invertWithCuda(src, dst, fi, vsapi, stream);
+        } else {
+            dst = vsapi->newVideoFrame(fi, width, height, src, core);
+            // It's processing loop time!
+            // Loop over all the planes
+            int plane;
+            for (plane = 0; plane < fi->numPlanes; plane++) {
+                const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+                int src_stride = vsapi->getStride(src, plane);
+                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+                int dst_stride = vsapi->getStride(dst, plane); // note that if a frame has the same dimensions and format, the stride is guaranteed to be the same. int dst_stride = src_stride would be fine too in this filter.
+                // Since planes may be subsampled you have to query the height of them individually
+                int h = vsapi->getFrameHeight(src, plane);
+                int y;
+                int w = vsapi->getFrameWidth(src, plane);
+                int x;
+
+                for (y = 0; y < h; y++) {
+                    for (x = 0; x < w; x++)
+                        dstp[x] = ~srcp[x];
+
+                    dstp += dst_stride;
+                    srcp += src_stride;
+                }
+            }
         }
 
-        //For something as simple as an invert, we can probably get away with out creating a
-        //new frame, as we can just operate on the source data, but due to the design of
-        //Vapoursynth, we don't have that option, so we lose some speed there.
-        VSFrameRef *dst = vsapi->newVideoFrameAtLocation(fi, width, height, src, core, flGPU);
 
-        int err = 0;
-        int streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src), "_CUDAStreamIndex", 0, &err);
-        cudaStream_t stream;
-
-        if (!err) {
-            vsapi->getStreamAtIndex(core, &stream, streamIndex);
-            // vsapi->setFilterError("Merge: Unable to retrieve CUDA stream index for frame.", frameCtx);
-            // vsapi->freeNode(d->node1);
-            // vsapi->freeNode(d->node2);
-            // return 0;
-        }
-
-        invertWithCuda(src, dst, fi, vsapi, stream);
 
         vsapi->freeFrame(src);
 
