@@ -3047,7 +3047,7 @@ typedef struct {
 const int MergeShift = 15;
 
 #if FEATURE_CUDA
-extern int mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const int *pl, const VSFrameRef **fr, const MergeData *d, const int MergeShift, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+extern int mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const MergeData *d, const int MergeShift, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 #endif
 
 static void VS_CC mergeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -3073,7 +3073,7 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
-            if (!mergeProcessCUDA(src1, src2, dst, pl, fr, d, MergeShift, frameCtx, core, vsapi)) {
+            if (!mergeProcessCUDA(src1, src2, dst, d, MergeShift, frameCtx, core, vsapi)) {
                 vsapi->freeFrame(src1);
                 vsapi->freeFrame(src2);
                 vsapi->freeFrame(dst);
@@ -3234,6 +3234,10 @@ typedef struct {
     int process[3];
 } MaskedMergeData;
 
+#if FEATURE_CUDA
+extern int VS_CC maskedMergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const VSFrameRef *mask, const VSFrameRef *mask23, const MaskedMergeData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+#endif
+
 static void VS_CC maskedMergeInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     MaskedMergeData *d = (MaskedMergeData *) * instanceData;
     vsapi->setVideoInfo(d->vi, 1, node);
@@ -3255,58 +3259,78 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
         const VSFrameRef *mask23 = 0;
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fr[] = {d->process[0] ? 0 : src1, d->process[1] ? 0 : src1, d->process[2] ? 0 : src1};
-        VSFrameRef *dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
         int plane;
         int x, y;
         if (d->mask23)
            mask23 = vsapi->getFrameFilter(n, d->mask23, frameCtx);
-        for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
-            if (d->process[plane]) {
-                int h = vsapi->getFrameHeight(src1, plane);
-                int w = vsapi->getFrameWidth(src2, plane);
-                int stride = vsapi->getStride(src1, plane);
-                const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
-                const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
-                const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
-                uint8_t *dstp = vsapi->getWritePtr(dst, plane);
 
-                if (d->vi->format->sampleType == stInteger) {
-                    if (d->vi->format->bytesPerSample == 1) {
-                        for (y = 0; y < h; y++) {
-                            for (x = 0; x < w; x++)
-                                dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * (maskp[x] > 2 ? maskp[x] + 1 : maskp[x]) + 128) >> 8);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            maskp += stride;
-                            dstp += stride;
+        const FrameLocation fLocation = vsapi->getFrameLocation(src1);
+        VSFrameRef *dst = 0;
+
+        if (fLocation == flGPU) {
+#if FEATURE_CUDA
+            dst = vsapi->newVideoFrameAtLocation2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
+            if (!maskedMergeProcessCUDA(src1, src2, dst, mask, mask23, d, frameCtx, core, vsapi)) {
+                vsapi->freeFrame(src1);
+                vsapi->freeFrame(src2);
+                vsapi->freeFrame(mask);
+                vsapi->freeFrame(mask23);
+                vsapi->freeFrame(dst);
+                return 0;
+            }
+#endif
+        } else {
+            dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
+
+            for (plane = 0; plane < d->vi->format->numPlanes; plane++) {
+                if (d->process[plane]) {
+                    int h = vsapi->getFrameHeight(src1, plane);
+                    int w = vsapi->getFrameWidth(src2, plane);
+                    int stride = vsapi->getStride(src1, plane);
+                    const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
+                    const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
+                    const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
+                    uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+
+                    if (d->vi->format->sampleType == stInteger) {
+                        if (d->vi->format->bytesPerSample == 1) {
+                            for (y = 0; y < h; y++) {
+                                for (x = 0; x < w; x++)
+                                    dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * (maskp[x] > 2 ? maskp[x] + 1 : maskp[x]) + 128) >> 8);
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                maskp += stride;
+                                dstp += stride;
+                            }
+                        } else if (d->vi->format->bytesPerSample == 2) {
+                            int shift = d->vi->format->bitsPerSample;
+                            int round = 1 << (shift - 1);
+                            for (y = 0; y < h; y++) {
+                                for (x = 0; x < w; x++)
+                                    ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x]
+                                        - ((const uint16_t *)srcp1)[x]) * (((const uint16_t *)maskp)[x] > 2 ? ((const uint16_t *)maskp)[x] + 1 : ((const uint16_t *)maskp)[x]) + round) >> shift);
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                maskp += stride;
+                                dstp += stride;
+                            }
                         }
-                    } else if (d->vi->format->bytesPerSample == 2) {
-                        int shift = d->vi->format->bitsPerSample;
-                        int round = 1 << (shift - 1);
-                        for (y = 0; y < h; y++) {
-                            for (x = 0; x < w; x++)
-                                ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x]
-                                    - ((const uint16_t *)srcp1)[x]) * (((const uint16_t *)maskp)[x] > 2 ? ((const uint16_t *)maskp)[x] + 1 : ((const uint16_t *)maskp)[x]) + round) >> shift);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            maskp += stride;
-                            dstp += stride;
-                        }
-                    }
-                } else if (d->vi->format->sampleType == stFloat) {
-                    if (d->vi->format->bytesPerSample == 4) {
-                        for (y = 0; y < h; y++) {
-                            for (x = 0; x < w; x++)
-                                ((float *)dstp)[x] = ((const float *)srcp1)[x] + ((((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * ((const float *)maskp)[x]);
-                            srcp1 += stride;
-                            srcp2 += stride;
-                            maskp += stride;
-                            dstp += stride;
+                    } else if (d->vi->format->sampleType == stFloat) {
+                        if (d->vi->format->bytesPerSample == 4) {
+                            for (y = 0; y < h; y++) {
+                                for (x = 0; x < w; x++)
+                                    ((float *)dstp)[x] = ((const float *)srcp1)[x] + ((((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * ((const float *)maskp)[x]);
+                                srcp1 += stride;
+                                srcp2 += stride;
+                                maskp += stride;
+                                dstp += stride;
+                            }
                         }
                     }
                 }
             }
         }
+
 
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);

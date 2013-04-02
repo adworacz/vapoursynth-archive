@@ -139,7 +139,7 @@ static __global__ void mergeKernel(const uint8_t * __restrict__ srcp1, const uin
     ((uint32_t *)dstp)[(stride / sizeof(uint32_t)) * row + column] = dst_data;
 }
 
-VS_EXTERN_C int VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const int *pl, const VSFrameRef **fr, const MergeData *d, const int MergeShift, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+VS_EXTERN_C int VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const MergeData *d, const int MergeShift, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     int blockSize = VSCUDAGetBasicBlocksize();
     dim3 threads(blockSize, blockSize);
 
@@ -186,6 +186,100 @@ VS_EXTERN_C int VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef 
               //         dstp += stride;
               //     }
               // }
+            }
+        }
+    }
+
+    return 1;
+}
+
+
+//////////////////////////////////////////
+// MaskedMerge
+
+typedef struct {
+    const VSVideoInfo *vi;
+    VSNodeRef *node1;
+    VSNodeRef *node2;
+    VSNodeRef *mask;
+    VSNodeRef *mask23;
+    int first_plane;
+    int process[3];
+} MaskedMergeData;
+
+//This kernel operates by each thread fetching a stretch of 4 8-bit pixels,
+//operating on them, and then sending them back to the destination.
+//This is done to achieve coalesced memory accesses, which are crucial for
+//high performance in CUDA.
+static __global__ void maskedMergeKernel(const uint8_t * __restrict__ srcp1, const uint8_t * __restrict__ srcp2, uint8_t * __restrict__ dstp, const int stride, const int width, const int height, const uint8_t * __restrict__ maskp){
+    const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
+    const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+
+    if (column >= width || row >= height)
+        return;
+
+    const uint32_t src1_data = ((uint32_t *)srcp1)[(stride / sizeof(uint32_t)) * row + column];
+    const uint32_t src2_data = ((uint32_t *)srcp2)[(stride / sizeof(uint32_t)) * row + column];
+    const uint32_t mask_data = ((uint32_t *)maskp)[(stride / sizeof(uint32_t)) * row + column];
+    uint32_t dst_data = 0;
+
+    for (int i = 0; i < sizeof(uint32_t); i++) {
+       ((uint8_t *)&dst_data)[i] = ((uint8_t *)&src1_data)[i] + (((((uint8_t *)&src2_data)[i] - ((uint8_t *)&src1_data)[i]) * (((uint8_t *)&mask_data)[i] > 2 ? ((uint8_t *)&mask_data)[i] + 1 : ((uint8_t *)&mask_data)[i]) + 128) >> 8);
+    }
+
+    //dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * (maskp[x] > 2 ? maskp[x] + 1 : maskp[x]) + 128) >> 8);
+    ((uint32_t *)dstp)[(stride / sizeof(uint32_t)) * row + column] = dst_data;
+}
+
+VS_EXTERN_C int VS_CC maskedMergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const VSFrameRef *mask, const VSFrameRef *mask23, const MaskedMergeData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    int blockSize = VSCUDAGetBasicBlocksize();
+    dim3 threads(blockSize, blockSize);
+
+    cudaStream_t stream = vsapi->getStreamForFrame(src2, frameCtx, core);
+
+    if (stream == 0) {
+        return 0;
+    }
+
+    for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
+        if (d->process[plane]) {
+            int height = vsapi->getFrameHeight(src1, plane);
+            int width = vsapi->getFrameWidth(src2, plane);
+            int stride = vsapi->getStride(src1, plane);
+            const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
+            const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
+            const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
+            uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+
+            if (d->vi->format->sampleType == stInteger) {
+                if (d->vi->format->bytesPerSample == 1) {
+                    dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
+
+                    maskedMergeKernel<<<grid, threads, 0, stream>>>(srcp1, srcp2, dstp, stride, width / sizeof(uint32_t), height, maskp);
+                } else if (d->vi->format->bytesPerSample == 2) {
+                    // int shift = d->vi->format->bitsPerSample;
+                    // int round = 1 << (shift - 1);
+                    // for (y = 0; y < h; y++) {
+                    //     for (x = 0; x < w; x++)
+                    //         ((uint16_t *)dstp)[x] = ((const uint16_t *)srcp1)[x] + (((((const uint16_t *)srcp2)[x]
+                    //             - ((const uint16_t *)srcp1)[x]) * (((const uint16_t *)maskp)[x] > 2 ? ((const uint16_t *)maskp)[x] + 1 : ((const uint16_t *)maskp)[x]) + round) >> shift);
+                    //     srcp1 += stride;
+                    //     srcp2 += stride;
+                    //     maskp += stride;
+                    //     dstp += stride;
+                    // }
+                }
+            } else if (d->vi->format->sampleType == stFloat) {
+                // if (d->vi->format->bytesPerSample == 4) {
+                //     for (y = 0; y < h; y++) {
+                //         for (x = 0; x < w; x++)
+                //             ((float *)dstp)[x] = ((const float *)srcp1)[x] + ((((const float *)srcp2)[x] - ((const float *)srcp1)[x]) * ((const float *)maskp)[x]);
+                //         srcp1 += stride;
+                //         srcp2 += stride;
+                //         maskp += stride;
+                //         dstp += stride;
+                //     }
+                // }
             }
         }
     }
