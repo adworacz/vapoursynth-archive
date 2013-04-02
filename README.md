@@ -11,4 +11,28 @@ TODO (for my use):
    * Add support 9/10/16-bit video to the GPU kernels. (More likely add specific kernels for those cases.)
    * Try and remove the depency on <cuda_runtime.h> in VapourSynth.h, as it forces non-cuda filters to import cuda libs.
    * Write tests for comparing filter output between the GPU and CPU.
+   * Improve frame cache handling on GPU. Right now I'm not sure that it's properly handling the different CPU and GPU frame caches.
+
+
+Filters to be ported:
+   * Lut2
+   * MaskedMerge
+   * AddBorders
+   * BlankClip
+   * CropAbs/CropRel
+   * ShufflePlanes (should be easy)
+   * SeperateFields
+   * DoubleWeave
+   * FlipVertical
+   * FlipHorizontal
+   * StackVertical
+   * StackHorizontal
+   * Transpose
+   * PlaneAverage/PlaneDifference (maybe...)
+
+
+Filters ported:
+   * Invert
+   * Merge
+   * Lut
 
