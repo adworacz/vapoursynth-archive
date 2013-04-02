@@ -29,6 +29,7 @@ Filters to be ported:
    * StackHorizontal
    * Transpose
    * PlaneAverage/PlaneDifference (maybe...)
+   * Expr (This will probably see a large performance boost.)
 
 
 Filters ported:
@@ -36,3 +37,5 @@ Filters ported:
    * Merge
    * Lut
 
+
+For the memory intensive stuff (shuffleplanes, transpose, etc...) more work and research should be put forth to avoid partition camping issues.
