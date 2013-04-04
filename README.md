@@ -19,7 +19,7 @@ TODO (for my use):
 
 Filters to be ported:
    * Lut2
-   * AddBorders
+   * AddBorders <- In Progress
    * BlankClip
    * CropAbs/CropRel
    * ShufflePlanes (should be easy)
