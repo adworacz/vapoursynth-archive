@@ -19,7 +19,6 @@ TODO (for my use):
 
 Filters to be ported:
    * Lut2
-   * MaskedMerge
    * AddBorders
    * BlankClip
    * CropAbs/CropRel
@@ -39,6 +38,7 @@ Filters ported:
    * Invert
    * Merge
    * Lut
+   * MaskedMerge
 
 
 For the memory intensive stuff (shuffleplanes, transpose, etc...) more work and research should be put forth to avoid partition camping issues.
