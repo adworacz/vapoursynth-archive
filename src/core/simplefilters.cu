@@ -23,6 +23,114 @@
 #include "VSCuda.h"
 
 
+//////////////////////////////////////////
+// AddBorders
+typedef struct {
+    VSNodeRef *node;
+    const VSVideoInfo *vi;
+    int left;
+    int right;
+    int top;
+    int bottom;
+    union {
+        uint32_t i[3];
+        float f[3];
+    } color;
+} AddBordersData;
+
+
+VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi,
+                                     const AddBordersData *d, VSFrameContext *frameCtx, VSCore *core,
+                                     const VSAPI *vsapi) {
+    int blockSize = VSCUDAGetBasicBlocksize();
+    dim3 threads(blockSize, blockSize);
+
+    cudaStream_t stream = vsapi->getStreamForFrame(src, frameCtx, core);
+
+    if (stream == 0) {
+        return 0;
+    }
+
+    for (plane = 0; plane < fi->numPlanes; plane++) {
+        int rowsize = vsapi->getFrameWidth(src, plane) * fi->bytesPerSample;
+        int srcstride = vsapi->getStride(src, plane);
+        int dststride = vsapi->getStride(dst, plane);
+        int srcheight = vsapi->getFrameHeight(src, plane);
+        const uint8_t *srcdata = vsapi->getReadPtr(src, plane);
+        uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
+        int padt = d->top >> (plane ? fi->subSamplingH : 0);
+        int padb = d->bottom >> (plane ? fi->subSamplingH : 0);
+        int padl = (d->left >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
+        int padr = (d->right >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
+        int color = d->color.i[plane];
+
+
+        // Pad TOP
+        switch (d->vi->format->bytesPerSample) {
+        case 1:
+            CHECKCUDA(cudaMemset2DAsync(dstdata, dststride, color, rowsize, padt, stream));
+            // vs_memset8(dstdata, color, padt * dststride);
+            break;
+        // case 2:
+        //     vs_memset16(dstdata, color, padt * dststride / 2);
+        //     break;
+        // case 4:
+        //     vs_memset32(dstdata, color, padt * dststride / 4);
+        //     break;
+        }
+        dstdata += padt * dststride;
+
+        // Pad LEFT/RIGHT
+
+
+
+        //The following is probably reallllllllyyy slow. Let's see if I can nail it with
+        //cuda's 2D memory operations.
+
+        // for (hloop = 0; hloop < srcheight; hloop++) {
+        //     switch (d->vi->format->bytesPerSample) {
+        //     case 1:
+        //         CHECKCUDA(cudaMemsetAsync(dstdata, color, padl, stream));
+        //         CHECKCUDA(cudaMemcpy(dstdata + padl, srcdata, rowsize));
+        //         CHECKCUDA(cudaMemsetAsync(dstdata + padl + rowsize, color, padr));
+        //         // vs_memset8(dstdata, color, padl);
+        //         // memcpy(dstdata + padl, srcdata, rowsize);
+        //         // vs_memset8(dstdata + padl + rowsize, color, padr);
+        //         break;
+        //     // case 2:
+        //     //     vs_memset16(dstdata, color, padl / 2);
+        //     //     memcpy(dstdata + padl, srcdata, rowsize);
+        //     //     vs_memset16(dstdata + padl + rowsize, color, padr / 2);
+        //     //     break;
+        //     // case 4:
+        //     //     vs_memset32(dstdata, color, padl / 4);
+        //     //     memcpy(dstdata + padl, srcdata, rowsize);
+        //     //     vs_memset32(dstdata + padl + rowsize, color, padr / 4);
+        //     //     break;
+        //     }
+
+        //     dstdata += dststride;
+        //     srcdata += srcstride;
+        // }
+
+        // Pad BOTTOM
+        switch (d->vi->format->bytesPerSample) {
+        case 1:
+            vs_memset8(dstdata, color, padb * dststride);
+            break;
+        // case 2:
+        //     vs_memset16(dstdata, color, padb * dststride / 2);
+        //     break;
+        // case 4:
+        //     vs_memset32(dstdata, color, padb * dststride / 4);
+        //     break;
+        }
+    }
+
+    return 1;
+}
+
+
 ///////////////////////
 // Lut
 

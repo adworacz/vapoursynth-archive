@@ -339,6 +339,10 @@ static int addBordersVerify(int left, int right, int top, int bottom, const VSFo
         return 0;
 }
 
+#if FEATURE_CUDA
+extern int addBordersProcessCUDA();
+#endif
+
 static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     AddBordersData *d = (AddBordersData *) * instanceData;
     char msg[150];
