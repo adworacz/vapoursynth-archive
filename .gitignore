@@ -9,3 +9,6 @@
 #Ignore python compile files
 *.pyc
 
+#Mac OS X
+.DS_Store
+
