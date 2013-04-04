@@ -1618,6 +1618,10 @@ static void VS_CC blankClipFree(void *instanceData, VSCore *core, const VSAPI *v
     free(d);
 }
 
+#if FEATURE_CUDA
+extern int VS_CC blankClipProcessCUDA(union color *color, const BlankClipData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+#endif
+
 static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
     BlankClipData d;
     BlankClipData *data;
@@ -1743,19 +1747,36 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         RETERROR("BlankClip: invalid number of color values specified");
     }
 
-    d.f = vsapi->newVideoFrame(d.vi.format, d.vi.width, d.vi.height, 0, core);
+    int gpu = vsapi->propGetInt(in, "gpu", 0, &err);
 
-    for (plane = 0; plane < d.vi.format->numPlanes; plane++) {
-        switch (d.vi.format->bytesPerSample) {
-        case 1:
-			vs_memset8(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane));
-            break;
-        case 2:
-			vs_memset16(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 2);
-            break;
-        case 4:
-			vs_memset32(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 4);
-            break;
+    if (err) {
+        gpu = 0; //CPU
+    }
+
+    if (gpu) {
+#if FEATURE_CUDA
+        d.f = vsapi->newVideoFrameAtLocation(d.vi.format, d.vi.width, d.vi.height, 0, core, flGPU);
+        cudaStream_t stream;
+        vsapi->propSetInt(vsapi->getFramePropsRW(d.f), "_CUDAStreamIndex", vsapi->getStream(core, &stream), paAppend);
+
+        if (!blankClipProcessCUDA(&color, &d, NULL, core, vsapi))
+            RETERROR("Unable to create BlankClip on the GPU");
+#endif
+    } else {
+        d.f = vsapi->newVideoFrame(d.vi.format, d.vi.width, d.vi.height, 0, core);
+
+        for (plane = 0; plane < d.vi.format->numPlanes; plane++) {
+            switch (d.vi.format->bytesPerSample) {
+            case 1:
+                vs_memset8(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane));
+                break;
+            case 2:
+                vs_memset16(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 2);
+                break;
+            case 4:
+                vs_memset32(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 4);
+                break;
+            }
         }
     }
 
@@ -3574,7 +3595,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("Turn180", "clip:clip;", flipHorizontalCreate, (void *)1, plugin);
     registerFunc("StackVertical", "clips:clip[];", stackCreate, (void *)1, plugin);
     registerFunc("StackHorizontal", "clips:clip[];", stackCreate, 0, plugin);
-    registerFunc("BlankClip", "clip:clip:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;", blankClipCreate, 0, plugin);
+    registerFunc("BlankClip", "clip:clip:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;gpu:int:opt;", blankClipCreate, 0, plugin);
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
     registerFunc("Lut", "clip:clip;lut:int[];planes:int[];", lutCreate, 0, plugin);
     registerFunc("Lut2", "clips:clip[];lut:int[];planes:int[];", lut2Create, 0, plugin);

@@ -42,9 +42,6 @@ typedef struct {
 VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi,
                                      const AddBordersData *d, VSFrameContext *frameCtx, VSCore *core,
                                      const VSAPI *vsapi) {
-    int blockSize = VSCUDAGetBasicBlocksize();
-    dim3 threads(blockSize, blockSize);
-
     cudaStream_t stream = vsapi->getStreamForFrame(src, frameCtx, core);
 
     if (stream == 0) {
@@ -113,6 +110,45 @@ VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *d
         //     break;
         // case 4:
         //     vs_memset32(dstdata, color, padb * dststride / 4);
+        //     break;
+        }
+    }
+
+    return 1;
+}
+
+
+//////////////////////////////////////////
+// BlankClip
+
+typedef struct {
+    VSFrameRef *f;
+    VSVideoInfo vi;
+} BlankClipData;
+
+union {
+    uint32_t i[3];
+    float f[3];
+} color;
+
+VS_EXTERN_C int VS_CC blankClipProcessCUDA(union color *color, const BlankClipData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    cudaStream_t stream = vsapi->getStreamForFrame(src, frameCtx, core);
+
+    if (stream == 0) {
+        return 0;
+    }
+
+    for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
+        switch (d->vi.format->bytesPerSample) {
+        case 1:
+            CHECKCUDA(cudaMemset2DAsync(vsapi->getWritePtr(d->f, plane), vsapi->getStride(d->f, plane), color->i[plane],
+                vsapi->getFrameWidth(d->f, plane) * d->vi.format->bytesPerSample, vsapi->getFrameHeight(d->f, plane), stream));
+            break;
+        // case 2:
+        //     vs_memset16(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 2);
+        //     break;
+        // case 4:
+        //     vs_memset32(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 4);
         //     break;
         }
     }

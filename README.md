@@ -16,6 +16,7 @@ TODO (for my use):
      but there may be a possibility to increase DRAM utilization, either through the reduction of partition camping or larger global->shared
      memory acceses, a la CUDA SDK's Transpose kernel.
    * Remove the unnecessary VSFormat parameter passing in simplefilters.cu, as the VSVideoInfo class already has the format.
+   * Rework getStream(), as it's not really used correctly.
 
 
 Filters to be ported:
