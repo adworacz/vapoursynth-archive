@@ -38,7 +38,6 @@ class CoreTestSequence(unittest.TestCase):
 
         self.checkDifference(cpu, gpu)
 
-
     def testMergeDifference(self):
         clip1 = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
         clip2 = self.core.std.BlankClip(format=vs.YUV420P8, color=[113, 115, 115])
@@ -48,6 +47,21 @@ class CoreTestSequence(unittest.TestCase):
         clip1 = self.core.std.TransferFrame(clip1, 1)
         clip2 = self.core.std.TransferFrame(clip2, 1)
         gpu = self.core.std.Merge(clips=[clip1, clip2])
+        gpu = self.core.std.TransferFrame(gpu, 0)
+
+        self.checkDifference(cpu, gpu)
+
+    def testMaskedMergeDifference(self):
+        clip1 = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
+        clip2 = self.core.std.BlankClip(clip=clip1, color=[113, 115, 115])
+        mask = self.core.std.BlankClip(clip=clip1, color=[235, 235, 235])
+
+        cpu = self.core.std.MaskedMerge(clips=[clip1, clip2], mask=mask)
+
+        clip1 = self.core.std.TransferFrame(clip1, 1)
+        clip2 = self.core.std.TransferFrame(clip2, 1)
+        mask = self.core.std.TransferFrame(mask, 1)
+        gpu = self.core.std.MaskedMerge(clips=[clip1, clip2], mask=mask)
         gpu = self.core.std.TransferFrame(gpu, 0)
 
         self.checkDifference(cpu, gpu)

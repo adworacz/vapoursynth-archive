@@ -12,6 +12,9 @@ TODO (for my use):
    * Try and remove the depency on <cuda_runtime.h> in VapourSynth.h, as it forces non-cuda filters to import cuda libs.
    * Write tests for comparing filter output between the GPU and CPU.
    * Improve frame cache handling on GPU. Right now I'm not sure that it's properly handling the different CPU and GPU frame caches.
+   * Investigate usage of shared memory in memory bound kernels in order to perform optimal coalescing. Items are currently coalesced,
+     but there may be a possibility to increase DRAM utilization, either through the reduction of partition camping or larger global->shared
+     memory acceses, a la CUDA SDK's Transpose kernel.
 
 
 Filters to be ported:
