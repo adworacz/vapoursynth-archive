@@ -340,7 +340,9 @@ static int addBordersVerify(int left, int right, int top, int bottom, const VSFo
 }
 
 #if FEATURE_CUDA
-extern int addBordersProcessCUDA();
+extern int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi,
+                                       const AddBordersData *d, VSFrameContext *frameCtx, VSCore *core,
+                                       const VSAPI *vsapi);
 #endif
 
 static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -350,80 +352,92 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
-        int plane;
-        int hloop;
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst;
+        const FrameLocation fLocation = vsapi->getFrameLocation(src);
 
         if (addBordersVerify(d->left, d->right, d->top, d->bottom, fi, msg)) {
             vsapi->setFilterError(msg, frameCtx);
             return 0;
         }
 
-        dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0) + d->left + d->right, vsapi->getFrameHeight(src, 0) + d->top + d->bottom, src, core);
-
-        // now that argument validation is over we can spend the next few lines actually adding borders
-        for (plane = 0; plane < fi->numPlanes; plane++) {
-            int rowsize = vsapi->getFrameWidth(src, plane) * fi->bytesPerSample;
-            int srcstride = vsapi->getStride(src, plane);
-            int dststride = vsapi->getStride(dst, plane);
-            int srcheight = vsapi->getFrameHeight(src, plane);
-            const uint8_t *srcdata = vsapi->getReadPtr(src, plane);
-            uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
-            int padt = d->top >> (plane ? fi->subSamplingH : 0);
-            int padb = d->bottom >> (plane ? fi->subSamplingH : 0);
-            int padl = (d->left >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
-            int padr = (d->right >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
-			int color = d->color.i[plane];
-
-			switch (d->vi->format->bytesPerSample) {
-			case 1:
-				vs_memset8(dstdata, color, padt * dststride);
-				break;
-			case 2:
-				vs_memset16(dstdata, color, padt * dststride / 2);
-				break;
-			case 4:
-				vs_memset32(dstdata, color, padt * dststride / 4);
-				break;
-			}
-            dstdata += padt * dststride;
-
-            for (hloop = 0; hloop < srcheight; hloop++) {
-				switch (d->vi->format->bytesPerSample) {
-				case 1:
-					vs_memset8(dstdata, color, padl);
-					memcpy(dstdata + padl, srcdata, rowsize);
-					vs_memset8(dstdata + padl + rowsize, color, padr);
-					break;
-				case 2:
-					vs_memset16(dstdata, color, padl / 2);
-					memcpy(dstdata + padl, srcdata, rowsize);
-					vs_memset16(dstdata + padl + rowsize, color, padr / 2);
-					break;
-				case 4:
-					vs_memset32(dstdata, color, padl / 4);
-					memcpy(dstdata + padl, srcdata, rowsize);
-					vs_memset32(dstdata + padl + rowsize, color, padr / 4);
-					break;
-				}
-
-                dstdata += dststride;
-                srcdata += srcstride;
+        if (fLocation == flGPU) {
+#if FEATURE_CUDA
+            dst = vsapi->newVideoFrameAtLocation(fi, vsapi->getFrameWidth(src, 0) + d->left + d->right, vsapi->getFrameHeight(src, 0) + d->top + d->bottom, src, core, flGPU);
+            if (!addBordersProcessCUDA(src, dst, fi, d, frameCtx, core, vsapi)) {
+                vsapi->freeFrame(src);
+                vsapi->freeFrame(dst);
+                return 0;
             }
+#endif
+        } else {
+            int plane;
+            int hloop;
+            dst = vsapi->newVideoFrame(fi, vsapi->getFrameWidth(src, 0) + d->left + d->right, vsapi->getFrameHeight(src, 0) + d->top + d->bottom, src, core);
 
-			switch (d->vi->format->bytesPerSample) {
-			case 1:
-				vs_memset8(dstdata, color, padb * dststride);
-				break;
-			case 2:
-				vs_memset16(dstdata, color, padb * dststride / 2);
-				break;
-			case 4:
-				vs_memset32(dstdata, color, padb * dststride / 4);
-				break;
-			}
+            // now that argument validation is over we can spend the next few lines actually adding borders
+            for (plane = 0; plane < fi->numPlanes; plane++) {
+                int rowsize = vsapi->getFrameWidth(src, plane) * fi->bytesPerSample;
+                int srcstride = vsapi->getStride(src, plane);
+                int dststride = vsapi->getStride(dst, plane);
+                int srcheight = vsapi->getFrameHeight(src, plane);
+                const uint8_t *srcdata = vsapi->getReadPtr(src, plane);
+                uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
+                int padt = d->top >> (plane ? fi->subSamplingH : 0);
+                int padb = d->bottom >> (plane ? fi->subSamplingH : 0);
+                int padl = (d->left >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
+                int padr = (d->right >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
+                int color = d->color.i[plane];
+
+                switch (d->vi->format->bytesPerSample) {
+                case 1:
+                    vs_memset8(dstdata, color, padt * dststride);
+                    break;
+                case 2:
+                    vs_memset16(dstdata, color, padt * dststride / 2);
+                    break;
+                case 4:
+                    vs_memset32(dstdata, color, padt * dststride / 4);
+                    break;
+                }
+                dstdata += padt * dststride;
+
+                for (hloop = 0; hloop < srcheight; hloop++) {
+                    switch (d->vi->format->bytesPerSample) {
+                    case 1:
+                        vs_memset8(dstdata, color, padl);
+                        memcpy(dstdata + padl, srcdata, rowsize);
+                        vs_memset8(dstdata + padl + rowsize, color, padr);
+                        break;
+                    case 2:
+                        vs_memset16(dstdata, color, padl / 2);
+                        memcpy(dstdata + padl, srcdata, rowsize);
+                        vs_memset16(dstdata + padl + rowsize, color, padr / 2);
+                        break;
+                    case 4:
+                        vs_memset32(dstdata, color, padl / 4);
+                        memcpy(dstdata + padl, srcdata, rowsize);
+                        vs_memset32(dstdata + padl + rowsize, color, padr / 4);
+                        break;
+                    }
+
+                    dstdata += dststride;
+                    srcdata += srcstride;
+                }
+
+                switch (d->vi->format->bytesPerSample) {
+                case 1:
+                    vs_memset8(dstdata, color, padb * dststride);
+                    break;
+                case 2:
+                    vs_memset16(dstdata, color, padb * dststride / 2);
+                    break;
+                case 4:
+                    vs_memset32(dstdata, color, padb * dststride / 4);
+                    break;
+                }
+            }
         }
 
         vsapi->freeFrame(src);

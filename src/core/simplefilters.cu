@@ -69,7 +69,6 @@ VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *d
         switch (d->vi->format->bytesPerSample) {
         case 1:
             CHECKCUDA(cudaMemset2DAsync(dstdata, dststride, color, rowsize, padt, stream));
-            // vs_memset8(dstdata, color, padt * dststride);
             break;
         // case 2:
         //     vs_memset16(dstdata, color, padt * dststride / 2);
@@ -81,42 +80,33 @@ VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *d
         dstdata += padt * dststride;
 
         // Pad LEFT/RIGHT
-
-
-
-        //The following is probably reallllllllyyy slow. Let's see if I can nail it with
-        //cuda's 2D memory operations.
-
-        // for (hloop = 0; hloop < srcheight; hloop++) {
-        //     switch (d->vi->format->bytesPerSample) {
-        //     case 1:
-        //         CHECKCUDA(cudaMemsetAsync(dstdata, color, padl, stream));
-        //         CHECKCUDA(cudaMemcpy(dstdata + padl, srcdata, rowsize));
-        //         CHECKCUDA(cudaMemsetAsync(dstdata + padl + rowsize, color, padr));
-        //         // vs_memset8(dstdata, color, padl);
-        //         // memcpy(dstdata + padl, srcdata, rowsize);
-        //         // vs_memset8(dstdata + padl + rowsize, color, padr);
-        //         break;
-        //     // case 2:
-        //     //     vs_memset16(dstdata, color, padl / 2);
-        //     //     memcpy(dstdata + padl, srcdata, rowsize);
-        //     //     vs_memset16(dstdata + padl + rowsize, color, padr / 2);
-        //     //     break;
-        //     // case 4:
-        //     //     vs_memset32(dstdata, color, padl / 4);
-        //     //     memcpy(dstdata + padl, srcdata, rowsize);
-        //     //     vs_memset32(dstdata + padl + rowsize, color, padr / 4);
-        //     //     break;
-        //     }
-
-        //     dstdata += dststride;
-        //     srcdata += srcstride;
-        // }
+        switch (d->vi->format->bytesPerSample) {
+        case 1:
+            CHECKCUDA(cudaMemset2DAsync(dstdata, dststride, color, padl, srcheight, stream)); //Maybe remove the Async, have had problems in the past.
+            CHECKCUDA(cudaMemcpy2D(dstdata + padl, dststride, srcdata, srcstride, rowsize, srcheight, cudaMemcpyDeviceToDevice));
+            CHECKCUDA(cudaMemset2DAsync(dstdata + padl + rowsize, dststride, color, padr, srcheight, stream));
+            // vs_memset8(dstdata, color, padl);
+            // memcpy(dstdata + padl, srcdata, rowsize);
+            // vs_memset8(dstdata + padl + rowsize, color, padr);
+            break;
+        // case 2:
+        //     vs_memset16(dstdata, color, padl / 2);
+        //     memcpy(dstdata + padl, srcdata, rowsize);
+        //     vs_memset16(dstdata + padl + rowsize, color, padr / 2);
+        //     break;
+        // case 4:
+        //     vs_memset32(dstdata, color, padl / 4);
+        //     memcpy(dstdata + padl, srcdata, rowsize);
+        //     vs_memset32(dstdata + padl + rowsize, color, padr / 4);
+        //     break;
+        }
+        dstdata += srcheight * dststride;
 
         // Pad BOTTOM
         switch (d->vi->format->bytesPerSample) {
         case 1:
-            vs_memset8(dstdata, color, padb * dststride);
+            CHECKCUDA(cudaMemset2DAsync(dstdata, dststride, color, rowsize, padb, stream));
+            // vs_memset8(dstdata, color, padb * dststride);
             break;
         // case 2:
         //     vs_memset16(dstdata, color, padb * dststride / 2);
