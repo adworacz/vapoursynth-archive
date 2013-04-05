@@ -18,6 +18,17 @@ class CoreTestSequence(unittest.TestCase):
             self.assertEqual(frame.props.PlaneDifference1[0], 0)
             self.assertEqual(frame.props.PlaneDifference2[0], 0)
 
+    def testAddBorders(self):
+        gpu = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115], length=1000, gpu=1)
+        cpu = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115], length=1000)
+
+        cpu = self.core.std.AddBorders(cpu, left=16, right=32, top=64, bottom=128, color=[115, 242, 69])
+        gpu = self.core.std.AddBorders(gpu, left=16, right=32, top=64, bottom=128, color=[115, 242, 69])
+
+        gpu = self.core.std.TransferFrame(gpu, 0)
+
+        self.checkDifference(cpu, gpu)
+
     def testBlankClip(self):
         cpu = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
         gpu = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115], gpu=1)
