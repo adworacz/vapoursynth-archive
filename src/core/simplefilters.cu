@@ -131,8 +131,8 @@ union color{
     float f[3];
 };
 
-VS_EXTERN_C int VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
-    cudaStream_t stream = vsapi->getStreamForFrame(d->f, frameCtx, core);
+VS_EXTERN_C int VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d, VSCore *core, const VSAPI *vsapi) {
+    cudaStream_t stream = vsapi->getStreamForFrame(d->f, NULL, core);
 
     if (stream == 0) {
         return 0;

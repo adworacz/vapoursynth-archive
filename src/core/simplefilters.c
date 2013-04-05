@@ -1619,7 +1619,7 @@ static void VS_CC blankClipFree(void *instanceData, VSCore *core, const VSAPI *v
 }
 
 #if FEATURE_CUDA
-extern int VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+extern int VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d, VSCore *core, const VSAPI *vsapi);
 #endif
 
 static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -1759,7 +1759,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
         cudaStream_t stream;
         vsapi->propSetInt(vsapi->getFramePropsRW(d.f), "_CUDAStreamIndex", vsapi->getStream(core, &stream), paAppend);
 
-        if (!blankClipProcessCUDA(&color, &d, NULL, core, vsapi))
+        if (!blankClipProcessCUDA(&color, &d, core, vsapi))
             RETERROR("Unable to create BlankClip on the GPU");
 #endif
     } else {
