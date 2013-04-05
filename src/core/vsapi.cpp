@@ -576,7 +576,7 @@ static cudaStream_t VS_CC getStreamForFrame(const VSFrameRef *frame, VSFrameCont
     int streamIndex = propGetInt(getFramePropsRO(frame), "_CUDAStreamIndex", 0, &err);
     cudaStream_t stream;
 
-    if (err) {
+    if (err && frameCtx) {
         setFilterError("getStreamForFrame: Unable to retrieve CUDA stream for frame.", frameCtx);
         return 0;
     }
