@@ -22,7 +22,6 @@ TODO (for my use):
 Filters to be ported:
    * Lut2
    * AddBorders <- In Progress
-   * BlankClip
    * CropAbs/CropRel
    * ShufflePlanes (should be easy)
    * SeperateFields
@@ -41,6 +40,6 @@ Filters ported:
    * Merge
    * Lut
    * MaskedMerge
-
+   * BlankClip
 
 For the memory intensive stuff (shuffleplanes, transpose, etc...) more work and research should be put forth to avoid partition camping issues.
