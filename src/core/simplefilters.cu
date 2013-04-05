@@ -65,7 +65,7 @@ VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *d
         // Pad TOP
         switch (d->vi->format->bytesPerSample) {
         case 1:
-            CHECKCUDA(cudaMemset2DAsync(dstdata, dststride, color, rowsize, padt, stream));
+            CHECKCUDA(cudaMemset2DAsync(dstdata, dststride, color, rowsize + padl + padr, padt, stream));
             break;
         // case 2:
         //     vs_memset16(dstdata, color, padt * dststride / 2);
@@ -102,7 +102,7 @@ VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *d
         // Pad BOTTOM
         switch (d->vi->format->bytesPerSample) {
         case 1:
-            CHECKCUDA(cudaMemset2DAsync(dstdata, dststride, color, rowsize, padb, stream));
+            CHECKCUDA(cudaMemset2DAsync(dstdata, dststride, color, rowsize + padl + padr, padb, stream));
             // vs_memset8(dstdata, color, padb * dststride);
             break;
         // case 2:
