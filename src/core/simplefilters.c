@@ -1619,7 +1619,7 @@ static void VS_CC blankClipFree(void *instanceData, VSCore *core, const VSAPI *v
 }
 
 #if FEATURE_CUDA
-extern int VS_CC blankClipProcessCUDA(union color *color, const BlankClipData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+extern int VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 #endif
 
 static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
