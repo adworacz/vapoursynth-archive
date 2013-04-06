@@ -29,7 +29,7 @@ Filters to be ported:
    * FlipHorizontal
    * StackVertical
    * StackHorizontal
-   * Transpose
+   * Transpose <-- In Progress
    * PlaneAverage/PlaneDifference (maybe...)
    * Expr (This will probably see a large performance boost.)
 

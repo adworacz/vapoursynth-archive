@@ -2479,6 +2479,10 @@ static void VS_CC transposeInit(VSMap *in, VSMap *out, void **instanceData, VSNo
     vsapi->setVideoInfo(&d->vi, 1, node);
 }
 
+#if FEATURE_CUDA
+extern int VS_CC transposeProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const TransposeData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+#endif
+
 static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     TransposeData *d = (TransposeData *) * instanceData;
 
@@ -2497,80 +2501,94 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
         uint8_t *dstp;
         int dst_stride;
         int partial_lines;
+        FrameLocation fLocation = vsapi->getFrameLocation(src);
 
-        for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
-            width = vsapi->getFrameWidth(src, plane);
-            height = vsapi->getFrameHeight(src, plane);
-            srcp = vsapi->getReadPtr(src, plane);
-            src_stride = vsapi->getStride(src, plane);
-            dstp = vsapi->getWritePtr(dst, plane);
-            dst_stride = vsapi->getStride(dst, plane);
-
-            switch (d->vi.format->bytesPerSample) {
-            case 1:
-#if 1 // x86-4ever
-                modwidth = width & ~7;
-                modheight = height & ~7;
-
-                for (y = 0; y < modheight; y += 8) {
-                    for (x = 0; x < modwidth; x += 8)
-                        vs_transpose_byte(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride);
-
-                    partial_lines = width - modwidth;
-
-                    if (partial_lines > 0)
-                        vs_transpose_byte_partial(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride, partial_lines);
-                }
-
-                for (y = modheight; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        dstp[dst_stride * x + y] = srcp[src_stride * y + x];
-
-                break;
-#else
-                for (y = 0; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        dstp[dst_stride * x + y] = srcp[src_stride * y + x];
-                break;
+        if (fLocation == flGPU) {
+#if FEATURE_CUDA
+            dst = dst = vsapi->newVideoFrameAtLocation(d->vi.format, d->vi.width, d->vi.height, src, core, fLocation);
+            if (!transposeProcessCUDA(src, dst, d, frameCtx, core, vsapi)) {
+                vsapi->freeFrame(src);
+                vsapi->freeFrame(dst);
+                return 0;
+            }
 #endif
-            case 2:
+        } else {
+            dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
+
+            for (plane = 0; plane < d->vi.format->numPlanes; plane++) {
+                width = vsapi->getFrameWidth(src, plane);
+                height = vsapi->getFrameHeight(src, plane);
+                srcp = vsapi->getReadPtr(src, plane);
+                src_stride = vsapi->getStride(src, plane);
+                dstp = vsapi->getWritePtr(dst, plane);
+                dst_stride = vsapi->getStride(dst, plane);
+
+                switch (d->vi.format->bytesPerSample) {
+                case 1:
 #if 1 // x86-4ever
-                modwidth = width & ~3;
-                modheight = height & ~3;
+                    modwidth = width & ~7;
+                    modheight = height & ~7;
 
-                for (y = 0; y < modheight; y += 4) {
-                    for (x = 0; x < modwidth; x += 4)
-                        vs_transpose_word(srcp + src_stride * y + x * 2, src_stride, dstp + dst_stride * x + y * 2, dst_stride);
+                    for (y = 0; y < modheight; y += 8) {
+                        for (x = 0; x < modwidth; x += 8)
+                            vs_transpose_byte(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride);
 
-                    partial_lines = width - modwidth;
+                        partial_lines = width - modwidth;
 
-                    if (partial_lines > 0)
-                        vs_transpose_word_partial(srcp + src_stride * y + x * 2, src_stride, dstp + dst_stride * x + y * 2, dst_stride, partial_lines);
-                }
+                        if (partial_lines > 0)
+                            vs_transpose_byte_partial(srcp + src_stride * y + x, src_stride, dstp + dst_stride * x + y, dst_stride, partial_lines);
+                    }
 
-                src_stride /= 2;
-                dst_stride /= 2;
+                    for (y = modheight; y < height; y++)
+                        for (x = 0; x < width; x++)
+                            dstp[dst_stride * x + y] = srcp[src_stride * y + x];
 
-                for (y = modheight; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
-
-                break;
+                    break;
 #else
-                src_stride /= 2;
-                dst_stride /= 2;
-                for (y = 0; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
-                break;
+                    for (y = 0; y < height; y++)
+                        for (x = 0; x < width; x++)
+                            dstp[dst_stride * x + y] = srcp[src_stride * y + x];
+                    break;
 #endif
-            case 4:
-                src_stride /= 4;
-                dst_stride /= 4;
-                for (y = 0; y < height; y++)
-                    for (x = 0; x < width; x++)
-                        ((uint32_t *)dstp)[dst_stride * x + y] = ((const uint32_t *)srcp)[src_stride * y + x];
-                break;
+                case 2:
+#if 1 // x86-4ever
+                    modwidth = width & ~3;
+                    modheight = height & ~3;
+
+                    for (y = 0; y < modheight; y += 4) {
+                        for (x = 0; x < modwidth; x += 4)
+                            vs_transpose_word(srcp + src_stride * y + x * 2, src_stride, dstp + dst_stride * x + y * 2, dst_stride);
+
+                        partial_lines = width - modwidth;
+
+                        if (partial_lines > 0)
+                            vs_transpose_word_partial(srcp + src_stride * y + x * 2, src_stride, dstp + dst_stride * x + y * 2, dst_stride, partial_lines);
+                    }
+
+                    src_stride /= 2;
+                    dst_stride /= 2;
+
+                    for (y = modheight; y < height; y++)
+                        for (x = 0; x < width; x++)
+                            ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
+
+                    break;
+#else
+                    src_stride /= 2;
+                    dst_stride /= 2;
+                    for (y = 0; y < height; y++)
+                        for (x = 0; x < width; x++)
+                            ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
+                    break;
+#endif
+                case 4:
+                    src_stride /= 4;
+                    dst_stride /= 4;
+                    for (y = 0; y < height; y++)
+                        for (x = 0; x < width; x++)
+                            ((uint32_t *)dstp)[dst_stride * x + y] = ((const uint32_t *)srcp)[src_stride * y + x];
+                    break;
+                }
             }
         }
 

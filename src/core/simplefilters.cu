@@ -240,7 +240,114 @@ VS_EXTERN_C int VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, con
     return 1;
 }
 
+//////////////////////////////////////////
+// Transpose
 
+typedef struct {
+    VSNodeRef *node;
+    VSVideoInfo vi;
+} TransposeData;
+
+#define TILE_DIM 128
+#define BLOCK_ROWS 32 //Try with 16 as well. Remember to adjust blocksize accordingly.
+
+// The below transpose kernel is taken and slightly modified from the CUDA SDK Transpose example.
+// http://docs.nvidia.com/cuda/samples/6_Advanced/transpose/doc/MatrixTranspose.pdf
+// http://developer.download.nvidia.com/compute/DevZone/C/Projects/x64/transpose.tar.gz
+static __global__ void transposeKernel(const uint8_t * __restrict__ src, uint8_t * __restrict__ dst, int src_stride, int dst_stride, int width, int height){
+    __shared__ uint8_t tile[TILE_DIM][TILE_DIM+1];
+
+    int blockIdx_x, blockIdx_y;
+
+    // do diagonal reordering
+    if (width == height)
+    {
+        blockIdx_y = blockIdx.x;
+        blockIdx_x = (blockIdx.x+blockIdx.y)%gridDim.x;
+    }
+    else
+    {
+        int bid = blockIdx.x + gridDim.x*blockIdx.y;
+        blockIdx_y = bid%gridDim.y;
+        blockIdx_x = ((bid/gridDim.y)+blockIdx_y)%gridDim.x;
+    }
+
+    // from here on the code is same as previous kernel except blockIdx_x replaces blockIdx.x
+    // and similarly for y
+
+    int xIndex = blockIdx_x * TILE_DIM + threadIdx.x;
+    int yIndex = blockIdx_y * TILE_DIM + threadIdx.y;
+    int index_in = xIndex + (yIndex)*src_stride;
+
+    // Handle non-square input.
+    if (xIndex >= width || yIndex >= height)
+        return;
+
+    xIndex = blockIdx_y * TILE_DIM + threadIdx.x;
+    yIndex = blockIdx_x * TILE_DIM + threadIdx.y;
+    int index_out = xIndex + (yIndex)*dst_stride;
+
+    for (int i=0; i<TILE_DIM; i+=BLOCK_ROWS)
+    {
+        tile[threadIdx.y+i][threadIdx.x] = src[index_in+i*src_stride];
+    }
+
+    __syncthreads();
+
+    for (int i=0; i<TILE_DIM; i+=BLOCK_ROWS)
+    {
+        dst[index_out+i*dst_stride] = tile[threadIdx.x][threadIdx.y+i];
+    }
+}
+
+VS_EXTERN_C int VS_CC transposeProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const TransposeData *d,
+                                           VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+    int blockSize = VSCUDAGetBasicBlocksize();
+    dim3 threads(blockSize, blockSize);
+
+    cudaStream_t stream = vsapi->getStreamForFrame(src, frameCtx, core);
+
+    if (stream == 0) {
+        return 0;
+    }
+
+    for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
+        int width = vsapi->getFrameWidth(src, plane);
+        int height = vsapi->getFrameHeight(src, plane);
+        const uint8_t *srcp = vsapi->getReadPtr(src, plane);
+        int src_stride = vsapi->getStride(src, plane);
+        uint8_t *dstp = vsapi->getWritePtr(dst, plane);
+        int dst_stride = vsapi->getStride(dst, plane);
+
+
+        switch (d->vi.format->bytesPerSample) {
+            case 1:
+                dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
+                transposeKernel<<<grid, threads, 0, stream>>>(srcp, dstp, src_stride, dst_stride, width, height);
+                // for (y = 0; y < height; y++)
+                //     for (x = 0; x < width; x++)
+                //         dstp[dst_stride * x + y] = srcp[src_stride * y + x];
+                break;
+            // case 2:
+            //     src_stride /= 2;
+            //     dst_stride /= 2;
+            //     for (y = 0; y < height; y++)
+            //         for (x = 0; x < width; x++)
+            //             ((uint16_t *)dstp)[dst_stride * x + y] = ((const uint16_t *)srcp)[src_stride * y + x];
+            //     break;
+            // case 4:
+            //     src_stride /= 4;
+            //     dst_stride /= 4;
+            //     for (y = 0; y < height; y++)
+            //         for (x = 0; x < width; x++)
+            //             ((uint32_t *)dstp)[dst_stride * x + y] = ((const uint32_t *)srcp)[src_stride * y + x];
+            //     break;
+        }
+
+    }
+
+    return 1;
+}
 
 ///////////////////////
 // Merge
