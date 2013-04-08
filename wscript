@@ -309,6 +309,11 @@ def configure(conf):
         add_options(['NVCC_CXXFLAGS'], safe_options)
 
     convert_cuda_cxx_options()
+    print(type(conf.env.CC_VERSION))
+    
+    if conf.env.CC_VERSION >= ('4','7','0'):
+        print("Fixing CUDA compilation with GCC >= 4.7")
+        add_options(['NVCC_CXXFLAGS'],['-include','../include/fix_cuda_cxx.h'])
 
 def build(bld):
     def search_paths(paths):
