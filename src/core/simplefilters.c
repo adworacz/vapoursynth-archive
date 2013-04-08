@@ -2505,7 +2505,7 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
 
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
-            dst = dst = vsapi->newVideoFrameAtLocation(d->vi.format, d->vi.width, d->vi.height, src, core, fLocation);
+            dst = vsapi->newVideoFrameAtLocation(d->vi.format, d->vi.width, d->vi.height, src, core, fLocation);
             if (!transposeProcessCUDA(src, dst, d, frameCtx, core, vsapi)) {
                 vsapi->freeFrame(src);
                 vsapi->freeFrame(dst);

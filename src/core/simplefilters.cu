@@ -286,11 +286,9 @@ static __global__ void alignedTransposeKernel(const uint8_t * __restrict__ src, 
             for (int i = 0; i < 4; i++) {
                 ((uint8_t *)&output)[i] = tile[(threadIdx.x * 4) + i][threadIdx.y + j];
             }
-
             ((uint32_t *)dst)[index_out + (j * dst_stride)] = output;
         }
     }
-
 }
 
 VS_EXTERN_C int VS_CC transposeProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const TransposeData *d,
@@ -312,7 +310,7 @@ VS_EXTERN_C int VS_CC transposeProcessCUDA(const VSFrameRef *src, VSFrameRef *ds
         uint8_t *dstp = vsapi->getWritePtr(dst, plane);
         int dst_stride = vsapi->getStride(dst, plane);
 
-
+        // fprintf(stderr, "strides src : %d, dst : %d\n", src_stride, dst_stride);
         switch (d->vi.format->bytesPerSample) {
             case 1:
                 dim3 grid(ceil((float)width / TILE_DIM), ceil((float)height / TILE_DIM));
