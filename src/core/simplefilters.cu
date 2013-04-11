@@ -300,6 +300,49 @@ static __global__ void transposeKernel(const uint8_t * __restrict__ src, uint8_t
     }
 }
 
+static __global__ void alignedTransposeKernel(const uint8_t * __restrict__ src, uint8_t * __restrict__ dst, int src_stride, int dst_stride, int width, int height){
+    __shared__ uint8_t tile[TILE_DIM][TILE_DIM + 1];
+
+    //Adjust strides to account for using 4-byte data to work on 1-byte data.
+    src_stride >>= 2;
+    dst_stride >>= 2;
+
+    int xIndex = blockIdx.x * blockDim.x + threadIdx.x;
+    int yIndex = blockIdx.y * TILE_DIM + threadIdx.y;
+    int index_in = xIndex + (yIndex) * src_stride;
+
+    for (int j = 0; j < TILE_DIM; j += blockDim.y) {
+        if (yIndex + j < height) {
+            uint32_t input = ((uint32_t *)src)[index_in + (j * src_stride)];
+
+            #pragma unroll 4
+            for (int i = 0; i < 4; i++) {
+                tile[threadIdx.y + j][(threadIdx.x * 4) + i] = ((uint8_t *)&input)[i];
+            }
+        }
+    }
+
+    __syncthreads();
+
+    xIndex = blockIdx.y * blockIdx.x + threadIdx.x;
+    yIndex = blockIdx.x * TILE_DIM + threadIdx.y;
+    int index_out = xIndex + (yIndex) * dst_stride;
+
+    for (int j = 0; j < TILE_DIM; j += blockDim.y) {
+        if (yIndex + j < width) {
+            int output = 0;
+
+            #pragma unroll 4
+            for (int i = 0; i < 4; i++) {
+                ((uint8_t *)&output)[i] = tile[(threadIdx.x * 4) + i][threadIdx.y + j];
+            }
+
+            ((uint32_t *)dst)[index_out + (j * dst_stride)] = output;
+        }
+    }
+
+}
+
 VS_EXTERN_C int VS_CC transposeProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const TransposeData *d,
                                            VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     int blockSize = VSCUDAGetBasicBlocksize();
@@ -322,8 +365,8 @@ VS_EXTERN_C int VS_CC transposeProcessCUDA(const VSFrameRef *src, VSFrameRef *ds
 
         switch (d->vi.format->bytesPerSample) {
             case 1:
-                dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
-                transposeKernel<<<grid, threads, 0, stream>>>(srcp, dstp, src_stride, dst_stride, width, height);
+                dim3 grid(ceil((float)width / TILE_DIM), ceil((float)height / TILE_DIM));
+                alignedTransposeKernel<<<grid, threads, 0, stream>>>(srcp, dstp, src_stride, dst_stride, width, height);
                 // for (y = 0; y < height; y++)
                 //     for (x = 0; x < width; x++)
                 //         dstp[dst_stride * x + y] = srcp[src_stride * y + x];
