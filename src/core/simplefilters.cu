@@ -315,7 +315,7 @@ static __global__ void alignedTransposeKernel(const uint8_t * __restrict__ src, 
         if (yIndex + j < height) {
             uint32_t input = ((uint32_t *)src)[index_in + (j * src_stride)];
 
-            #pragma unroll 4
+            #pragma unroll
             for (int i = 0; i < 4; i++) {
                 tile[threadIdx.y + j][(threadIdx.x * 4) + i] = ((uint8_t *)&input)[i];
             }
@@ -324,7 +324,7 @@ static __global__ void alignedTransposeKernel(const uint8_t * __restrict__ src, 
 
     __syncthreads();
 
-    xIndex = blockIdx.y * blockIdx.x + threadIdx.x;
+    xIndex = blockIdx.y * blockDim.x + threadIdx.x;
     yIndex = blockIdx.x * TILE_DIM + threadIdx.y;
     int index_out = xIndex + (yIndex) * dst_stride;
 
@@ -332,7 +332,7 @@ static __global__ void alignedTransposeKernel(const uint8_t * __restrict__ src, 
         if (yIndex + j < width) {
             int output = 0;
 
-            #pragma unroll 4
+            #pragma unroll
             for (int i = 0; i < 4; i++) {
                 ((uint8_t *)&output)[i] = tile[(threadIdx.x * 4) + i][threadIdx.y + j];
             }
