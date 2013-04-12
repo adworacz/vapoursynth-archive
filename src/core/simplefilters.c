@@ -2490,7 +2490,7 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        VSFrameRef *dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
+        VSFrameRef *dst;
         int plane;
         int x;
         int y;
