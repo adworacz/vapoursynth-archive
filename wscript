@@ -122,9 +122,13 @@ def configure(conf):
     if conf.options.cuda == 'true':
         conf.load('cuda')
 
-
     if conf.options.cuda == 'true':
         conf.load('cuda')
+        gpu_archs = ['-gencode', 'arch=compute_20,code=sm_20',
+                    '-gencode', 'arch=compute_30,code=sm_30',
+                    '-gencode', 'arch=compute_35,code=sm_35']
+        for arch in gpu_archs:
+            conf.env.append_value('CUDAFLAGS', arch)
 
     if conf.env.DEST_CPU in ['x86', 'x86_64', 'x64', 'amd64', 'x86_amd64']:
         # Load Yasm explicitly, then the Nasm module which
@@ -160,6 +164,9 @@ def configure(conf):
                     ['-DARCH_X86_64=1',
                      '-DPIC=1'])
 
+        if conf.options.cuda == 'true':
+            add_options(['CUDAFLAGS'], ['-m64'])
+
         if conf.env.DEST_OS == 'darwin':
             fmt = 'macho64'
         elif conf.env.DEST_OS in ['win32', 'cygwin', 'msys', 'uwin']:
@@ -169,6 +176,9 @@ def configure(conf):
     elif conf.env.DEST_CPU == 'x86':
         add_options(['ASFLAGS'],
                     ['-DARCH_X86_64=0'])
+
+        if conf.options.cuda == 'true':
+            add_options(['CUDAFLAGS'], ['-m32'])
 
         if conf.env.DEST_OS == 'darwin':
             fmt = 'macho32'
@@ -309,7 +319,7 @@ def configure(conf):
         add_options(['NVCC_CXXFLAGS'], safe_options)
 
     convert_cuda_cxx_options()
-    
+
     # Handle CUDA compilation on GCC > 4.6
     if conf.env.CC_VERSION >= ('4','7','0'):
         print("Fixing CUDA compilation with GCC >= 4.7")
