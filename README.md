@@ -30,7 +30,7 @@ Filters to be ported:
    * StackVertical
    * StackHorizontal
    * PlaneAverage/PlaneDifference (maybe...)
-   * Expr (This will probably see a large performance boost.)
+   * Expr (This will probably see a large performance boost.) <-- In Progress
 
 
 Filters ported:

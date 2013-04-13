@@ -172,15 +172,17 @@ typedef struct {
 
 //Each thread perfoms a LUT on a block of 32 / 8 = 4 pixels.
 static __global__ void lutKernel8(const uint8_t * __restrict__ srcp, uint8_t * __restrict__ dstp,
-                                  const int stride, const int width, const int height,
+                                  int stride, const int width, const int height,
                                   const uint8_t * __restrict__ lut){
     const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
 
+    stride >>=2;
+
     if (column >= width || row >= height)
         return;
 
-    uint32_t src_data = ((uint32_t *)srcp)[(stride / sizeof(uint32_t)) * row + column];
+    uint32_t src_data = ((uint32_t *)srcp)[stride * row + column];
     uint32_t dst_data = 0;
 
     #pragma unroll 4
@@ -188,7 +190,7 @@ static __global__ void lutKernel8(const uint8_t * __restrict__ srcp, uint8_t * _
        ((uint8_t *)&dst_data)[i] = lut[((uint8_t *)&src_data)[i]];
     }
 
-    ((uint32_t *)dstp)[(stride / sizeof(uint32_t)) * row + column] = dst_data;
+    ((uint32_t *)dstp)[stride * row + column] = dst_data;
 }
 
 VS_EXTERN_C int VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi,
@@ -355,15 +357,17 @@ typedef struct {
 //operating on them, and then sending them back to the destination.
 //This is done to achieve coalesced memory accesses, which are crucial for
 //high performance in CUDA.
-static __global__ void mergeKernel(const uint8_t * __restrict__ srcp1, const uint8_t * __restrict__ srcp2, uint8_t * __restrict__ dstp, const int stride, const int width, const int height, const int weight, const int round, const int MergeShift){
+static __global__ void mergeKernel(const uint8_t * __restrict__ srcp1, const uint8_t * __restrict__ srcp2, uint8_t * __restrict__ dstp, int stride, const int width, const int height, const int weight, const int round, const int MergeShift){
     const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
 
     if (column >= width || row >= height)
         return;
 
-    uint32_t src1_data = ((uint32_t *)srcp1)[(stride / sizeof(uint32_t)) * row + column];
-    uint32_t src2_data = ((uint32_t *)srcp2)[(stride / sizeof(uint32_t)) * row + column];
+    stride >>= 2;
+
+    uint32_t src1_data = ((uint32_t *)srcp1)[stride * row + column];
+    uint32_t src2_data = ((uint32_t *)srcp2)[stride * row + column];
     uint32_t dst_data = 0;
 
     for (int i = 0; i < sizeof(uint32_t); i++) {
@@ -371,7 +375,7 @@ static __global__ void mergeKernel(const uint8_t * __restrict__ srcp1, const uin
     }
 
     //dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
-    ((uint32_t *)dstp)[(stride / sizeof(uint32_t)) * row + column] = dst_data;
+    ((uint32_t *)dstp)[stride * row + column] = dst_data;
 }
 
 VS_EXTERN_C int VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const MergeData *d, const int MergeShift, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -446,16 +450,18 @@ typedef struct {
 //operating on them, and then sending them back to the destination.
 //This is done to achieve coalesced memory accesses, which are crucial for
 //high performance in CUDA.
-static __global__ void maskedMergeKernel(const uint8_t * __restrict__ srcp1, const uint8_t * __restrict__ srcp2, uint8_t * __restrict__ dstp, const int stride, const int width, const int height, const uint8_t * __restrict__ maskp){
+static __global__ void maskedMergeKernel(const uint8_t * __restrict__ srcp1, const uint8_t * __restrict__ srcp2, uint8_t * __restrict__ dstp, int stride, const int width, const int height, const uint8_t * __restrict__ maskp){
     const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
 
     if (column >= width || row >= height)
         return;
 
-    const uint32_t src1_data = ((uint32_t *)srcp1)[(stride / sizeof(uint32_t)) * row + column];
-    const uint32_t src2_data = ((uint32_t *)srcp2)[(stride / sizeof(uint32_t)) * row + column];
-    const uint32_t mask_data = ((uint32_t *)maskp)[(stride / sizeof(uint32_t)) * row + column];
+    stride >>= 2;
+
+    const uint32_t src1_data = ((uint32_t *)srcp1)[stride * row + column];
+    const uint32_t src2_data = ((uint32_t *)srcp2)[stride * row + column];
+    const uint32_t mask_data = ((uint32_t *)maskp)[stride * row + column];
     uint32_t dst_data = 0;
 
     for (int i = 0; i < sizeof(uint32_t); i++) {
@@ -463,7 +469,7 @@ static __global__ void maskedMergeKernel(const uint8_t * __restrict__ srcp1, con
     }
 
     //dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * (maskp[x] > 2 ? maskp[x] + 1 : maskp[x]) + 128) >> 8);
-    ((uint32_t *)dstp)[(stride / sizeof(uint32_t)) * row + column] = dst_data;
+    ((uint32_t *)dstp)[stride * row + column] = dst_data;
 }
 
 VS_EXTERN_C int VS_CC maskedMergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const VSFrameRef *mask, const VSFrameRef *mask23, const MaskedMergeData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
