@@ -71,10 +71,9 @@ typedef struct {
 //buffer unfortunately. This will really effect performance unfortunately.
 #define MAX_EXPR_OPS 64
 
-//Each thread perfoms a LUT on a block of 32 / 8 = 4 pixels.
 static __global__ void exprKernel(const uint8_t ** __restrict__ srcp, uint8_t * __restrict__ dstp,
                                   int *stride, int dst_stride, const int width, const int height,
-                                  const ExprOp * __restrict__ vops){
+                                  const ExprOp * __restrict__ vops) {
     const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
 
@@ -212,19 +211,18 @@ static __global__ void exprKernel(const uint8_t ** __restrict__ srcp, uint8_t * 
         }
     }
     loopend:;
-
 }
 
-VS_EXTERN_C void VS_CC copyExprOps(const ExprOp *vops, ExprOp *d_ops, int numOps) {
+void VS_CC copyExprOps(const ExprOp *vops, ExprOp *d_ops, int numOps) {
     CHECKCUDA(cudaMalloc(&d_ops, numOps * sizeof(ExprOp)));
     CHECKCUDA(cudaMemcpy(d_ops, vops, numOps, cudaMemcpyHostToDevice));
 }
 
-VS_EXTERN_C void VS_CC freeExprOps(ExprOp *d_ops) {
+void VS_CC freeExprOps(ExprOp *d_ops) {
     CHECKCUDA(cudaFree(d_ops));
 }
 
-VS_EXTERN_C int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
+int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
                                            VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     int blockSize = VSCUDAGetBasicBlocksize();
     dim3 threads(blockSize, blockSize);
