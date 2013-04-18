@@ -42,7 +42,7 @@ Container& split(
     split1::empties_t empties = split1::empties_ok)
 {
     result.clear();
-    size_t current;   
+    size_t current;
     size_t next = -1;
     do {
         if (empties == split1::no_empties) {
@@ -90,6 +90,9 @@ enum PlaneOp {
 typedef struct {
     VSNodeRef *node[3];
     VSVideoInfo vi;
+#if FEATURE_CUDA
+    ExprOp *d_ops[3];
+#endif
     std::vector<ExprOp> ops[3];
     int plane[3];
 #ifdef VS_X86
@@ -100,6 +103,13 @@ typedef struct {
 } JitExprData;
 
 extern "C" void vs_evaluate_expr_sse2(const void *exprs, const uint8_t **rwptrs, const intptr_t *ptroffsets, int numiterations, void *stack);
+
+#if FEATURE_CUDA
+extern int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
+                                       VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+extern void VS_CC copyExprOps(const ExprOp *vops, ExprOp *d_ops, int numOps);
+extern void VS_CC freeExprOps(ExprOp *d_ops);
+#endif
 
 static void VS_CC exprInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     JitExprData *d = (JitExprData *) * instanceData;
@@ -163,7 +173,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 }
             }
         }
-        
+
 #else
 
         for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
@@ -182,7 +192,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                 int dst_stride = vsapi->getStride(dst, plane);
                 int h = vsapi->getFrameHeight(src[0], plane);
                 int w = vsapi->getFrameWidth(src[0], plane);
-                const ExprOp *vops = &d->ops[plane][0]; 
+                const ExprOp *vops = &d->ops[plane][0];
                 float *stack = &d->stack[0];
                 float stacktop = 0;
                 float tmp;
@@ -209,7 +219,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
                                 stacktop = ((const float *)srcp[vops[i].e.ival])[x];
                                 ++si;
                                 break;
-                            case opLoadConst: 
+                            case opLoadConst:
                                 stack[si] = stacktop;
                                 stacktop = vops[i].e.fval;
                                 ++si;
@@ -333,6 +343,12 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
 
 static void VS_CC exprFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     JitExprData *d = (JitExprData *)instanceData;
+#if FEATURE_CUDA
+    for (int i = 0; i < d->vi.format->numPlanes; i++) {
+        freeExprOps(&d->d_ops[i][0]);
+    }
+#endif
+
     for (int i = 0; i < 3; i++)
         vsapi->freeNode(d->node[i]);
     delete d;
@@ -520,8 +536,12 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
         const SOperation sop[3] = { getLoadOp(vi[0]), getLoadOp(vi[1]), getLoadOp(vi[2]) };
         int maxStackSize = 0;
-        for (int i = 0; i < d.vi.format->numPlanes; i++)
+        for (int i = 0; i < d.vi.format->numPlanes; i++) {
             maxStackSize = std::max(parseExpression(expr[i], d.ops[i], sop, getStoreOp(&d.vi)), maxStackSize);
+#if FEATURE_CUDA
+            copyExprOps(&d.ops[i][0], &d.d_ops[i][0], d.ops[i].size());
+#endif
+        }
 
 #ifdef VS_X86
         d.stack = vs_aligned_malloc<void>(maxStackSize * 32, 32);
