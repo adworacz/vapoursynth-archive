@@ -107,7 +107,7 @@ extern "C" void vs_evaluate_expr_sse2(const void *exprs, const uint8_t **rwptrs,
 #if FEATURE_CUDA
 extern int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
                                        VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
-extern void VS_CC copyExprOps(const ExprOp *vops, ExprOp *d_ops, int numOps);
+ExprOp * VS_CC copyExprOps(const ExprOp *vops, int numOps);
 extern void VS_CC freeExprOps(ExprOp *d_ops);
 #endif
 
@@ -558,7 +558,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         for (int i = 0; i < d.vi.format->numPlanes; i++) {
             maxStackSize = std::max(parseExpression(expr[i], d.ops[i], sop, getStoreOp(&d.vi)), maxStackSize);
 #if FEATURE_CUDA
-            copyExprOps(&d.ops[i][0], &d.d_ops[i][0], d.ops[i].size());
+            d.d_ops[i] = copyExprOps(&d.ops[i][0], d.ops[i].size());
 #endif
         }
 

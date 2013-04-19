@@ -121,9 +121,6 @@ def configure(conf):
 
     if conf.options.cuda == 'true':
         conf.load('cuda')
-
-    if conf.options.cuda == 'true':
-        conf.load('cuda')
         gpu_archs = ['-gencode', 'arch=compute_20,code=sm_20',
                     '-gencode', 'arch=compute_30,code=sm_30',
                     '-gencode', 'arch=compute_35,code=sm_35']
@@ -213,6 +210,10 @@ def configure(conf):
 
         add_options(['ASFLAGS'],
                     ['-g{0}'.format(dbgfmt)])
+
+        if conf.options.cuda == 'true':
+            add_options(['NVCC_CXXFLAGS'], ['-g', '-G'])
+
     elif conf.options.mode == 'release':
         if conf.env.CXX_NAME == 'gcc':
             add_options(['CFLAGS', 'CXXFLAGS'],

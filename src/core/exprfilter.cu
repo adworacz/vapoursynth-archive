@@ -72,7 +72,7 @@ typedef struct {
 #define MAX_EXPR_OPS 64
 
 static __global__ void exprKernel(const uint8_t ** __restrict__ srcp, uint8_t * __restrict__ dstp,
-                                  int *stride, int dst_stride, const int width, const int height,
+                                  int stride, int dst_stride, const int width, const int height,
                                   const ExprOp * __restrict__ vops) {
     const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
@@ -93,17 +93,17 @@ static __global__ void exprKernel(const uint8_t ** __restrict__ srcp, uint8_t * 
         switch (vops[i].op) {
         case opLoadSrc8:
             stack[si] = stacktop;
-            stacktop = srcp[vops[i].e.ival][stride[vops[i].e.ival] * row + column];
+            stacktop = srcp[vops[i].e.ival][stride * row + column];
             ++si;
             break;
         case opLoadSrc16:
             stack[si] = stacktop;
-            stacktop = ((const uint16_t *)srcp[vops[i].e.ival])[(stride[vops[i].e.ival] >> 1) * row + column];
+            stacktop = ((const uint16_t *)srcp[vops[i].e.ival])[(stride >> 1) * row + column];
             ++si;
             break;
         case opLoadSrcF:
             stack[si] = stacktop;
-            stacktop = ((const float *)srcp[vops[i].e.ival])[(stride[vops[i].e.ival] >> 2) * row + column];
+            stacktop = ((const float *)srcp[vops[i].e.ival])[(stride >> 2) * row + column];
             ++si;
             break;
         case opLoadConst:
@@ -213,9 +213,12 @@ static __global__ void exprKernel(const uint8_t ** __restrict__ srcp, uint8_t * 
     loopend:;
 }
 
-void VS_CC copyExprOps(const ExprOp *vops, ExprOp *d_ops, int numOps) {
+ExprOp * VS_CC copyExprOps(const ExprOp *vops, int numOps) {
+    ExprOp *d_ops;
     CHECKCUDA(cudaMalloc(&d_ops, numOps * sizeof(ExprOp)));
     CHECKCUDA(cudaMemcpy(d_ops, vops, numOps, cudaMemcpyHostToDevice));
+
+    return d_ops;
 }
 
 void VS_CC freeExprOps(ExprOp *d_ops) {
@@ -234,17 +237,17 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
     }
 
     const uint8_t *srcp[3];
-    int src_stride[3];
+    int src_stride;
 
     for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
         if (d->plane[plane] == poProcess) {
             for (int i = 0; i < 3; i++) {
                 if (d->node[i]) {
                     srcp[i] = vsapi->getReadPtr(src[i], plane);
-                    src_stride[i] = vsapi->getStride(src[i], plane);
+                    src_stride = vsapi->getStride(src[i], plane);
                 } else {
                     srcp[i] = NULL;
-                    src_stride[i] = 0;
+                    src_stride = 0;
                 }
             }
 
