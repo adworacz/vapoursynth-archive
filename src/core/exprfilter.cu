@@ -41,6 +41,8 @@ typedef union {
 struct ExprOp {
     ExprUnion e;
     uint32_t op;
+    ExprOp() {
+    }
     ExprOp(SOperation op, float val) : op(op) {
         e.fval = val;
     }
@@ -73,12 +75,13 @@ typedef struct {
 
 __constant__ uint8_t *d_srcp[3];
 __constant__ int d_src_stride[3];
+__constant__ ExprOp d_vops[3][MAX_EXPR_OPS];
 
 template <typename T>
 __device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict__ vops, uint32_t *input, int index);
 
 static __global__ void exprKernel(uint8_t * __restrict__ dstp, int dst_stride, const int width,
-                                  const int height, const ExprOp * __restrict__ vops) {
+                                  const int height, const int plane) {
     const int column = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
@@ -113,7 +116,7 @@ __device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict
     int i = -1;
     while (true) {
         i++;
-        switch (vops[i].op) {
+        switch (d_vops[plane][i].op) {
         case opLoadSrc8:
         case opLoadSrc16:
         case opLoadSrcF:
@@ -123,7 +126,7 @@ __device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict
             break;
         case opLoadConst:
             stack[si] = stacktop;
-            stacktop = vops[i].e.fval;
+            stacktop = d_vops[plane][i].e.fval;
             ++si;
             break;
         case opDup:
@@ -224,17 +227,8 @@ __device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict
     }
 }
 
-
-ExprOp * VS_CC copyExprOps(const ExprOp *vops, int numOps) {
-    ExprOp *d_ops;
-    CHECKCUDA(cudaMalloc(&d_ops, numOps * sizeof(ExprOp)));
-    CHECKCUDA(cudaMemcpy(d_ops, vops, numOps * sizeof(ExprOp), cudaMemcpyHostToDevice));
-
-    return d_ops;
-}
-
-void VS_CC freeExprOps(ExprOp *d_ops) {
-    CHECKCUDA(cudaFree(d_ops));
+void VS_CC copyExprOps(const ExprOp *vops, int numOps, int plane) {
+    CHECKCUDA(cudaMemcpyToSymbol(d_vops[plane], vops, numOps * sizeof(ExprOp)));
 }
 
 int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
@@ -275,7 +269,7 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
             CHECKCUDA(cudaMemcpyToSymbol(d_src_stride, src_stride, 3 * sizeof(int)));
 
             dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
-            exprKernel<<<grid, threads, 0, stream>>>(dstp, dst_stride, width, height, d->d_ops[plane]);
+            exprKernel<<<grid, threads, 0, stream>>>(dstp, dst_stride, width, height, plane);
         }
     }
 
