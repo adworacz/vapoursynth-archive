@@ -30,8 +30,6 @@ Filters to be ported:
    * StackVertical
    * StackHorizontal
    * PlaneAverage/PlaneDifference (maybe...)
-   * Expr (This will probably see a large performance boost.) <-- In Progress
-
 
 Filters ported:
    * Invert
@@ -41,5 +39,6 @@ Filters ported:
    * BlankClip
    * AddBorders
    * Transpose
+   * Expr
 
 For the memory intensive stuff (shuffleplanes, transpose, etc...) more work and research should be put forth to avoid partition camping issues.
