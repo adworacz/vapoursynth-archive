@@ -27,8 +27,8 @@ static void VS_CC invertInit(VSMap *in, VSMap *out, void **instanceData, VSNode 
 //Again, a bit scary looking, but all this kernel does is load and invert 4 bytes for every thread.
 //I feel like this is a bit of a cleaner implementation, but it does of some scary casts and sizeof's.
 static __global__ void invertKernel(const uint8_t * __restrict__ d_srcdata, uint8_t * __restrict__ d_dstdata, int width, int height, int src_pitch, int dst_pitch) {
-    const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
-    const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+    const int column = blockDim.x * blockIdx.x + threadIdx.x;
+    const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
     if (column >= width || row >= height)
         return;

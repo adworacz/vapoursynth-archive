@@ -174,8 +174,8 @@ typedef struct {
 static __global__ void lutKernel8(const uint8_t * __restrict__ srcp, uint8_t * __restrict__ dstp,
                                   int stride, const int width, const int height,
                                   const uint8_t * __restrict__ lut){
-    const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
-    const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+    const int column = blockDim.x * blockIdx.x + threadIdx.x;
+    const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
     stride >>=2;
 
@@ -358,8 +358,8 @@ typedef struct {
 //This is done to achieve coalesced memory accesses, which are crucial for
 //high performance in CUDA.
 static __global__ void mergeKernel(const uint8_t * __restrict__ srcp1, const uint8_t * __restrict__ srcp2, uint8_t * __restrict__ dstp, int stride, const int width, const int height, const int weight, const int round, const int MergeShift){
-    const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
-    const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+    const int column = blockDim.x * blockIdx.x + threadIdx.x;
+    const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
     if (column >= width || row >= height)
         return;
@@ -451,8 +451,8 @@ typedef struct {
 //This is done to achieve coalesced memory accesses, which are crucial for
 //high performance in CUDA.
 static __global__ void maskedMergeKernel(const uint8_t * __restrict__ srcp1, const uint8_t * __restrict__ srcp2, uint8_t * __restrict__ dstp, int stride, const int width, const int height, const uint8_t * __restrict__ maskp){
-    const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
-    const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
+    const int column = blockDim.x * blockIdx.x + threadIdx.x;
+    const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
     if (column >= width || row >= height)
         return;
