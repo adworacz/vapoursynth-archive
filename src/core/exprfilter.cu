@@ -79,8 +79,6 @@ static __global__ void exprKernel(uint8_t * __restrict__ dstp, int dst_stride, c
     const int column = IMAD(blockDim.x, blockIdx.x, threadIdx.x);
     const int row = IMAD(blockDim.y, blockIdx.y, threadIdx.y);
 
-    // stride >>=2;
-
     if (column >= width || row >= height)
         return;
 

@@ -107,7 +107,7 @@ extern "C" void vs_evaluate_expr_sse2(const void *exprs, const uint8_t **rwptrs,
 #if FEATURE_CUDA
 extern int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
                                        VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
-ExprOp * VS_CC copyExprOps(const ExprOp *vops, int numOps);
+extern ExprOp * VS_CC copyExprOps(const ExprOp *vops, int numOps);
 extern void VS_CC freeExprOps(ExprOp *d_ops);
 #endif
 

@@ -37,25 +37,25 @@ class CoreTestSequence(unittest.TestCase):
 
         self.checkDifference(cpu, gpu)
 
-    def testLutDifference(self):
-        clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
+    # def testLutDifference(self):
+    #     clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
 
-        luty = []
-        for x in range(2 ** clip.format.bits_per_sample):
-            luty.append(max(min(x, 235), 16))
-        lutuv = []
-        for x in range(2 ** clip.format.bits_per_sample):
-            lutuv.append(max(min(x, 100), 16))
+    #     luty = []
+    #     for x in range(2 ** clip.format.bits_per_sample):
+    #         luty.append(max(min(x, 235), 16))
+    #     lutuv = []
+    #     for x in range(2 ** clip.format.bits_per_sample):
+    #         lutuv.append(max(min(x, 100), 16))
 
-        cpu = self.core.std.Lut(clip=clip, lut=luty, planes=0)
-        cpu = self.core.std.Lut(clip=cpu, lut=lutuv, planes=[1, 2])
+    #     cpu = self.core.std.Lut(clip=clip, lut=luty, planes=0)
+    #     cpu = self.core.std.Lut(clip=cpu, lut=lutuv, planes=[1, 2])
 
-        clip = self.core.std.TransferFrame(clip, 1)
-        gpu = self.core.std.Lut(clip=clip, lut=luty, planes=0)
-        gpu = self.core.std.Lut(clip=gpu, lut=lutuv, planes=[1, 2])
-        gpu = self.core.std.TransferFrame(gpu, 0)
+    #     clip = self.core.std.TransferFrame(clip, 1)
+    #     gpu = self.core.std.Lut(clip=clip, lut=luty, planes=0)
+    #     gpu = self.core.std.Lut(clip=gpu, lut=lutuv, planes=[1, 2])
+    #     gpu = self.core.std.TransferFrame(gpu, 0)
 
-        self.checkDifference(cpu, gpu)
+    #     self.checkDifference(cpu, gpu)
 
     def testTransposeDifference(self):
         cpu = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
@@ -68,30 +68,46 @@ class CoreTestSequence(unittest.TestCase):
 
         self.checkDifference(cpu, gpu)
 
-    def testMergeDifference(self):
-        clip1 = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
-        clip2 = self.core.std.BlankClip(format=vs.YUV420P8, color=[113, 115, 115])
+    # def testMergeDifference(self):
+    #     clip1 = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
+    #     clip2 = self.core.std.BlankClip(format=vs.YUV420P8, color=[113, 115, 115])
 
-        cpu = self.core.std.Merge(clips=[clip1, clip2])
+    #     cpu = self.core.std.Merge(clips=[clip1, clip2])
 
-        clip1 = self.core.std.TransferFrame(clip1, 1)
-        clip2 = self.core.std.TransferFrame(clip2, 1)
-        gpu = self.core.std.Merge(clips=[clip1, clip2])
-        gpu = self.core.std.TransferFrame(gpu, 0)
+    #     clip1 = self.core.std.TransferFrame(clip1, 1)
+    #     clip2 = self.core.std.TransferFrame(clip2, 1)
+    #     gpu = self.core.std.Merge(clips=[clip1, clip2])
+    #     gpu = self.core.std.TransferFrame(gpu, 0)
 
-        self.checkDifference(cpu, gpu)
+    #     self.checkDifference(cpu, gpu)
 
-    def testMaskedMergeDifference(self):
-        clip1 = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
-        clip2 = self.core.std.BlankClip(clip=clip1, color=[113, 115, 115])
-        mask = self.core.std.BlankClip(clip=clip1, color=[235, 235, 235])
+    # def testMaskedMergeDifference(self):
+    #     clip1 = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
+    #     clip2 = self.core.std.BlankClip(clip=clip1, color=[113, 115, 115])
+    #     mask = self.core.std.BlankClip(clip=clip1, color=[235, 235, 235])
 
-        cpu = self.core.std.MaskedMerge(clips=[clip1, clip2], mask=mask)
+    #     cpu = self.core.std.MaskedMerge(clips=[clip1, clip2], mask=mask)
 
-        clip1 = self.core.std.TransferFrame(clip1, 1)
-        clip2 = self.core.std.TransferFrame(clip2, 1)
-        mask = self.core.std.TransferFrame(mask, 1)
-        gpu = self.core.std.MaskedMerge(clips=[clip1, clip2], mask=mask)
+    #     clip1 = self.core.std.TransferFrame(clip1, 1)
+    #     clip2 = self.core.std.TransferFrame(clip2, 1)
+    #     mask = self.core.std.TransferFrame(mask, 1)
+    #     gpu = self.core.std.MaskedMerge(clips=[clip1, clip2], mask=mask)
+    #     gpu = self.core.std.TransferFrame(gpu, 0)
+
+    #     self.checkDifference(cpu, gpu)
+
+    def testExprDifference(self):
+        clipa = self.core.std.BlankClip(format=vs.YUV420P8, color=[112, 112, 220])
+        clipb = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 45, 73])
+        clipc = self.core.std.BlankClip(format=vs.YUV420P8, color=[200, 119, 182])
+
+        gpua = self.core.std.TransferFrame(clipa, 1)
+        gpub = self.core.std.TransferFrame(clipb, 1)
+        gpuc = self.core.std.TransferFrame(clipc, 1)
+
+        cpu = self.core.std.Expr(clips=[clipa, clipb, clipc], expr=["x y + z + 3 /", "", ""])
+        gpu = self.core.std.Expr(clips=[gpua, gpub, gpuc], expr=["x y + z + 3 /", "", ""])
+
         gpu = self.core.std.TransferFrame(gpu, 0)
 
         self.checkDifference(cpu, gpu)
