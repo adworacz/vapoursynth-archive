@@ -26,20 +26,6 @@
 
 //GPU Specific Defines.
 //////////////////////////////////////////////////////////////////
-//Maps to a single instruction on G8x / G9x / G10x
-
-
-//Disabled because ran into issues on Kepler K20s. GK110.
-// #if __CUDA_ARCH__ <= 200
-//     //For CC < 2.0
-//     #define IMAD(a, b, c) ( mul24((a), (b)) + (c) )
-// #else
-//     //For CC >= 2.0
-//     #define IMAD(a, b, c) ( mulhi((a), (b)) + (c) )
-// #endif
-//////////////////////////////////////////////////////////////////
-
-
 
 //Some usefull CUDA error checking functions.
 #define CHECKCUDA(err)  __checkCudaErrors (err, __FILE__, __LINE__)

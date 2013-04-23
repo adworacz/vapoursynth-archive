@@ -177,7 +177,7 @@ static __global__ void lutKernel8(const uint8_t * __restrict__ srcp, uint8_t * _
     const int column = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
-    stride >>=2;
+    stride >>= 2;
 
     if (column >= width || row >= height)
         return;
