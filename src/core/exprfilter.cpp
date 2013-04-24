@@ -106,7 +106,6 @@ extern "C" void vs_evaluate_expr_sse2(const void *exprs, const uint8_t **rwptrs,
 #if FEATURE_CUDA
 extern int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
                                        VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
-extern void VS_CC copyExprOps(const ExprOp *vops, int numOps, int plane);
 #endif
 
 static void VS_CC exprInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
@@ -548,12 +547,8 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
         const SOperation sop[3] = { getLoadOp(vi[0]), getLoadOp(vi[1]), getLoadOp(vi[2]) };
         int maxStackSize = 0;
-        for (int i = 0; i < d.vi.format->numPlanes; i++) {
+        for (int i = 0; i < d.vi.format->numPlanes; i++)
             maxStackSize = std::max(parseExpression(expr[i], d.ops[i], sop, getStoreOp(&d.vi)), maxStackSize);
-#if FEATURE_CUDA
-            copyExprOps(&d.ops[i][0], d.ops[i].size(), i);
-#endif
-        }
 
 #ifdef VS_X86
         d.stack = vs_aligned_malloc<void>(maxStackSize * 32, 32);

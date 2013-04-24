@@ -58,7 +58,6 @@ enum PlaneOp {
 typedef struct {
     VSNodeRef *node[3];
     VSVideoInfo vi;
-    ExprOp *d_ops[3];
     std::vector<ExprOp> ops[3];
     int plane[3];
 #ifdef VS_X86
@@ -247,6 +246,10 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
 
     const uint8_t *srcp[3];
     int src_stride[3];
+
+    for (int i = 0; i < d->vi.format->numPlanes; i++){
+        copyExprOps(&d->ops[i][0], d->ops[i].size(), i);
+    }
 
     for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
         if (d->plane[plane] == poProcess) {
