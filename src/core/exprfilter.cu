@@ -75,7 +75,7 @@ __constant__ uint8_t *d_srcp[3];
 __constant__ int d_src_stride[3];
 
 template <typename T>
-__device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict__ vops, T *input);
+__device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict__ vops, uint32_t *input, int index);
 
 static __global__ void exprKernel(uint8_t * __restrict__ dstp, int dst_stride, const int width,
                                   const int height, const ExprOp * __restrict__ vops) {
@@ -97,20 +97,15 @@ static __global__ void exprKernel(uint8_t * __restrict__ dstp, int dst_stride, c
         }
     }
 
-    uint8_t pInput[3];
     for (int i = 0; i < 4; i++) {
-        pInput[0] = ((uint8_t *)&input[0])[i];
-        pInput[1] = ((uint8_t *)&input[1])[i];
-        pInput[2] = ((uint8_t *)&input[2])[i];
-
-        ((uint8_t *)&output)[i] = performOp<uint8_t>(stack, vops, pInput);
+        ((uint8_t *)&output)[i] = performOp<uint8_t>(stack, vops, input, i);
     }
 
     ((uint32_t *)dstp)[(dst_stride >> 2) * row + column] = output;
 }
 
 template <typename T>
-__device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict__ vops, T *input) {
+__device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict__ vops, uint32_t *input, int index) {
     float stacktop = 0;
     float tmp;
 
@@ -123,7 +118,7 @@ __device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict
         case opLoadSrc16:
         case opLoadSrcF:
             stack[si] = stacktop;
-            stacktop = input[vops[i].e.ival];
+            stacktop = ((T *)&input[vops[i].e.ival])[index];
             ++si;
             break;
         case opLoadConst:
