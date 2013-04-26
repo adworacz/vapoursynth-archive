@@ -69,10 +69,13 @@ typedef struct {
 //Since we don't support the allocation of variable size arrays in
 //each thread's local memory, we will just have to work with a large
 //buffer unfortunately. This will really effect performance unfortunately.
-#define MAX_EXPR_OPS 64
+#define MAX_EXPR_OPS 32
 
 __constant__ uint8_t *d_srcp[3];
 __constant__ int d_src_stride[3];
+
+template <typename T>
+__device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict__ vops, T *input);
 
 static __global__ void exprKernel(uint8_t * __restrict__ dstp, int dst_stride, const int width,
                                   const int height, const ExprOp * __restrict__ vops) {
@@ -83,6 +86,31 @@ static __global__ void exprKernel(uint8_t * __restrict__ dstp, int dst_stride, c
         return;
 
     float stack[MAX_EXPR_OPS];
+
+    //uint8_t case.
+    uint32_t input[3];
+    uint32_t output;
+
+    for (int i = 0; i < 3; i++) {
+        if (d_srcp[i] != NULL) {
+            input[i] = ((uint32_t *)d_srcp[i])[(d_src_stride[i] >> 2) * row + column];
+        }
+    }
+
+    uint8_t pInput[3];
+    for (int i = 0; i < 4; i++) {
+        pInput[0] = ((uint8_t *)&input[0])[i];
+        pInput[1] = ((uint8_t *)&input[1])[i];
+        pInput[2] = ((uint8_t *)&input[2])[i];
+
+        ((uint8_t *)&output)[i] = performOp<uint8_t>(stack, vops, pInput);
+    }
+
+    ((uint32_t *)dstp)[(dst_stride >> 2) * row + column] = output;
+}
+
+template <typename T>
+__device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict__ vops, T *input) {
     float stacktop = 0;
     float tmp;
 
@@ -92,18 +120,10 @@ static __global__ void exprKernel(uint8_t * __restrict__ dstp, int dst_stride, c
         i++;
         switch (vops[i].op) {
         case opLoadSrc8:
-            stack[si] = stacktop;
-            stacktop = d_srcp[vops[i].e.ival][d_src_stride[vops[i].e.ival] * row + column];
-            ++si;
-            break;
         case opLoadSrc16:
-            stack[si] = stacktop;
-            stacktop = ((const uint16_t *)d_srcp[vops[i].e.ival])[(d_src_stride[vops[i].e.ival] >> 1) * row + column];
-            ++si;
-            break;
         case opLoadSrcF:
             stack[si] = stacktop;
-            stacktop = ((const float *)d_srcp[vops[i].e.ival])[(d_src_stride[vops[i].e.ival] >> 2) * row + column];
+            stacktop = input[vops[i].e.ival];
             ++si;
             break;
         case opLoadConst:
@@ -200,18 +220,15 @@ static __global__ void exprKernel(uint8_t * __restrict__ dstp, int dst_stride, c
             stacktop = (stacktop > 0) ? 0.0f : 1.0f;
             break;
         case opStore8:
-            dstp[dst_stride * row + column] = fmaxf(0.0f, fminf(stacktop, 255.0f)) + 0.5f;
-            goto loopend;
+            return fmaxf(0.0f, fminf(stacktop, 255.0f)) + 0.5f;
         case opStore16:
-            ((uint16_t *)dstp)[(dst_stride >> 1) * row + column] = fmaxf(0.0f, fminf(stacktop, 256*255.0f)) + 0.5f;
-            goto loopend;
+            return fmaxf(0.0f, fminf(stacktop, 256*255.0f)) + 0.5f;
         case opStoreF:
-            ((float *)dstp)[(dst_stride >> 2) * row + column] = stacktop;
-            goto loopend;
+            return stacktop;
         }
     }
-    loopend:;
 }
+
 
 ExprOp * VS_CC copyExprOps(const ExprOp *vops, int numOps) {
     ExprOp *d_ops;
@@ -259,7 +276,7 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
             CHECKCUDA(cudaMemcpyToSymbol(d_srcp, srcp, 3 * sizeof(uint8_t *)));
             CHECKCUDA(cudaMemcpyToSymbol(d_src_stride, src_stride, 3 * sizeof(int)));
 
-            dim3 grid(ceil((float)width / threads.x), ceil((float)height / threads.y));
+            dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
             exprKernel<<<grid, threads, 0, stream>>>(dstp, dst_stride, width, height, d->d_ops[plane]);
         }
     }
