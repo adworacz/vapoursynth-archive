@@ -248,6 +248,9 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
         return 0;
     }
 
+    //Change the preferred cache config.
+    CHECKCUDA(cudaFuncSetCacheConfig(exprKernel, cudaFuncCachePreferL1));
+
     const uint8_t *srcp[3];
     int src_stride[3];
 
