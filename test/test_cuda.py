@@ -112,6 +112,20 @@ class CoreTestSequence(unittest.TestCase):
 
         self.checkDifference(cpu, gpu)
 
+    def testExprDifferenceLargeOps(self):
+        clipa = self.core.std.BlankClip(format=vs.YUV420P8, color=[112, 112, 220])
+        clipb = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 45, 73])
+
+        gpua = self.core.std.TransferFrame(clipa, 1)
+        gpub = self.core.std.TransferFrame(clipb, 1)
+
+        cpu = self.core.std.Expr(clips=[clipa, clipb], expr=["x 7 + y < x 2 + x 7 - y > x 2 - x 51 * y 49 * + 100 / ? ?", "", ""])
+        gpu = self.core.std.Expr(clips=[gpua, gpub], expr=["x 7 + y < x 2 + x 7 - y > x 2 - x 51 * y 49 * + 100 / ? ?", "", ""])
+
+        gpu = self.core.std.TransferFrame(gpu, 0)
+
+        self.checkDifference(cpu, gpu)
+
 
 if __name__ == '__main__':
     unittest.main()
