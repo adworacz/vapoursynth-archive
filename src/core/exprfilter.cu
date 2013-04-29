@@ -71,15 +71,16 @@ typedef struct {
 //each thread's local memory, we will just have to work with a large
 //buffer unfortunately. This will really effect performance unfortunately.
 #define MAX_EXPR_OPS 32
+#define MAX_STACK_SIZE 10
 
 __constant__ uint8_t *d_srcp[3];
 __constant__ int d_src_stride[3];
 __constant__ ExprOp d_vops[3][MAX_EXPR_OPS];
 
 template <typename T>
-__device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict__ vops, uint32_t *input, int index);
+__device__ float performOp(float *stack, uint32_t *input, int index, int plane);
 
-static __global__ void exprKernel(uint8_t * __restrict__ dstp, int dst_stride, const int width,
+static __global__ void exprKernel(uint8_t *dstp, int dst_stride, const int width,
                                   const int height, const int plane) {
     const int column = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
@@ -87,7 +88,7 @@ static __global__ void exprKernel(uint8_t * __restrict__ dstp, int dst_stride, c
     if (column >= width || row >= height)
         return;
 
-    float stack[MAX_EXPR_OPS];
+    float stack[MAX_STACK_SIZE];
 
     //uint8_t case.
     uint32_t input[3];
@@ -100,14 +101,14 @@ static __global__ void exprKernel(uint8_t * __restrict__ dstp, int dst_stride, c
     }
 
     for (int i = 0; i < 4; i++) {
-        ((uint8_t *)&output)[i] = performOp<uint8_t>(stack, vops, input, i);
+        ((uint8_t *)&output)[i] = performOp<uint8_t>(stack, input, i, plane);
     }
 
     ((uint32_t *)dstp)[(dst_stride >> 2) * row + column] = output;
 }
 
 template <typename T>
-__device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict__ vops, uint32_t *input, int index) {
+__device__ float performOp(float *stack, uint32_t *input, int index, int plane) {
     float stacktop = 0;
     float tmp;
 
@@ -120,7 +121,7 @@ __device__ float performOp(float * __restrict__ stack, const ExprOp * __restrict
         case opLoadSrc16:
         case opLoadSrcF:
             stack[si] = stacktop;
-            stacktop = ((T *)&input[vops[i].e.ival])[index];
+            stacktop = ((T *)&input[d_vops[plane][i].e.ival])[index];
             ++si;
             break;
         case opLoadConst:
