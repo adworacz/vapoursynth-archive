@@ -20,6 +20,7 @@
 
 // Contains the CUDA implementation of the Expr filter.
 #include <vector>
+#include <stdexcept>
 #include "VapourSynth.h"
 #include "VSCuda.h"
 
@@ -70,7 +71,7 @@ typedef struct {
 //Since we don't support the allocation of variable size arrays in
 //each thread's local memory, we will just have to work with a large
 //buffer unfortunately. This will really effect performance unfortunately.
-#define MAX_EXPR_OPS 32
+#define MAX_EXPR_OPS 64
 #define MAX_STACK_SIZE 10
 
 __constant__ uint8_t *d_srcp[3];
@@ -228,6 +229,9 @@ __device__ float performOp(float *stack, uint32_t *input, int index, int plane) 
 }
 
 void VS_CC copyExprOps(const ExprOp *vops, int numOps, int plane) {
+    if (numOps > MAX_EXPR_OPS) {
+        throw std::runtime_error("The number of desired operations is greater than the supported threshold of the GPU version of Expr. Tell the author to increase the threshold.");
+    }
     CHECKCUDA(cudaMemcpyToSymbol(d_vops[plane], vops, numOps * sizeof(ExprOp)));
 }
 
@@ -242,12 +246,14 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
         return 0;
     }
 
-    //Change the preferred cache config.
+    //Change the preferred cache config. Shows significant speedup in our case.
     CHECKCUDA(cudaFuncSetCacheConfig(exprKernel, cudaFuncCachePreferL1));
 
     const uint8_t *srcp[3];
     int src_stride[3];
 
+    //We do this here instead of the plugin's create() function to
+    //prevent data overwrites.
     for (int i = 0; i < d->vi.format->numPlanes; i++){
         copyExprOps(&d->ops[i][0], d->ops[i].size(), i);
     }
