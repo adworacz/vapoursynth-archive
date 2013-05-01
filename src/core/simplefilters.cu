@@ -312,7 +312,6 @@ VS_EXTERN_C int VS_CC transposeProcessCUDA(const VSFrameRef *src, VSFrameRef *ds
         uint8_t *dstp = vsapi->getWritePtr(dst, plane);
         int dst_stride = vsapi->getStride(dst, plane);
 
-        // fprintf(stderr, "strides src : %d, dst : %d\n", src_stride, dst_stride);
         switch (d->vi.format->bytesPerSample) {
             case 1:
                 dim3 grid(ceil((float)width / TILE_DIM), ceil((float)height / TILE_DIM));
@@ -374,7 +373,6 @@ static __global__ void mergeKernel(const uint8_t * __restrict__ srcp1, const uin
        ((uint8_t *)&dst_data)[i] = ((uint8_t *)&src1_data)[i] + (((((uint8_t *)&src2_data)[i] - ((uint8_t *)&src1_data)[i]) * weight + round) >> MergeShift);
     }
 
-    //dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * weight + round) >> MergeShift);
     ((uint32_t *)dstp)[stride * row + column] = dst_data;
 }
 
@@ -468,7 +466,6 @@ static __global__ void maskedMergeKernel(const uint8_t * __restrict__ srcp1, con
        ((uint8_t *)&dst_data)[i] = ((uint8_t *)&src1_data)[i] + (((((uint8_t *)&src2_data)[i] - ((uint8_t *)&src1_data)[i]) * (((uint8_t *)&mask_data)[i] > 2 ? ((uint8_t *)&mask_data)[i] + 1 : ((uint8_t *)&mask_data)[i]) + 128) >> 8);
     }
 
-    //dstp[x] = srcp1[x] + (((srcp2[x] - srcp1[x]) * (maskp[x] > 2 ? maskp[x] + 1 : maskp[x]) + 128) >> 8);
     ((uint32_t *)dstp)[stride * row + column] = dst_data;
 }
 
