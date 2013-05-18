@@ -228,7 +228,7 @@ __device__ float performOp(float *stack, uint32_t *input, int index, int plane) 
     }
 }
 
-void VS_CC copyExprOps(const ExprOp *vops, int numOps, int plane) {
+static void VS_CC copyExprOps(const ExprOp *vops, int numOps, int plane) {
     if (numOps > MAX_EXPR_OPS) {
         throw std::runtime_error("The number of desired operations is greater than the supported threshold of the GPU version of Expr. Tell the author to increase the threshold.");
     }
