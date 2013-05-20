@@ -61,12 +61,12 @@ typedef struct {
     VSVideoInfo vi;
     std::vector<ExprOp> ops[3];
     int plane[3];
+    int opsOffset;
 #ifdef VS_X86
     void *stack;
 #else
     std::vector<float> stack;
 #endif
-    volatile int opsOffset;
 } JitExprData;
 
 //Since we don't support the allocation of variable size arrays in
@@ -97,12 +97,6 @@ static __global__ void exprKernel(uint8_t *dstp, int stride, const uint8_t * __r
     //uint8_t case.
     uint32_t input[3];
     uint32_t output;
-
-    // for (int i = 0; i < 3; i++) {
-    //     if (d_srcp[(opsOffset * 3) + i] != NULL) {
-    //         input[i] = ((uint32_t *)d_srcp[(opsOffset * 3) + i])[(d_src_stride[(opsOffset * 3) + i] >> 2) * row + column];
-    //     }
-    // }
 
     if (srcp0 != NULL)
         input[0] = ((uint32_t *)srcp0)[(stride >> 2) * row + column];
@@ -245,8 +239,7 @@ void VS_CC copyExprOps(const ExprOp *vops, int numOps, int plane, int offset) {
     if (offset > VSFILTER_EXPR_MAX_INSTANCE) {
         throw std::runtime_error("Expr: The number of Expr instances is greater than what this build supports. Increase VSFILTER_EXPR_MAX_INSTANCE and try again.");
     }
-    CHECKCUDA(cudaMemcpyToSymbol(d_vops, vops, numOps * sizeof(ExprOp), (plane) * MAX_EXPR_OPS * sizeof(ExprOp), cudaMemcpyHostToDevice));
-    //CHECKCUDA(cudaMemcpyToSymbol(d_vops[plane], vops, numOps * sizeof(ExprOp)));
+    CHECKCUDA(cudaMemcpyToSymbol(d_vops, vops, numOps * sizeof(ExprOp), ((offset * 3) + plane) * MAX_EXPR_OPS * sizeof(ExprOp)));
 }
 
 int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
@@ -258,10 +251,6 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
 
     if (stream == 0) {
         return 0;
-    }
-
-    if (d->opsOffset > VSFILTER_EXPR_MAX_INSTANCE) {
-        throw std::runtime_error("Expr: opsOffset got fucked up somehow.");
     }
 
     //Change the preferred cache config. Shows significant speedup in our case.
