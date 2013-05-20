@@ -66,6 +66,7 @@ typedef struct {
 #else
     std::vector<float> stack;
 #endif
+    int opsOffset;
 } JitExprData;
 
 //Since we don't support the allocation of variable size arrays in
@@ -74,15 +75,19 @@ typedef struct {
 #define MAX_EXPR_OPS 64
 #define MAX_STACK_SIZE 10
 
+#ifndef VSFILTER_EXPR_MAX_INSTANCE
+#define VSFILTER_EXPR_MAX_INSTANCE 25
+#endif
+
 __constant__ uint8_t *d_srcp[3];
 __constant__ int d_src_stride[3];
-__constant__ ExprOp d_vops[3][MAX_EXPR_OPS];
+__constant__ ExprOp d_vops[VSFILTER_EXPR_MAX_INSTANCE * 3][MAX_EXPR_OPS];
 
 template <typename T>
-__device__ float performOp(float *stack, uint32_t *input, int index, int plane);
+__device__ float performOp(float *stack, uint32_t *input, const int index, const int plane, const int opsOffset);
 
 static __global__ void exprKernel(uint8_t *dstp, int dst_stride, const int width,
-                                  const int height, const int plane) {
+                                  const int height, const int plane, const int opsOffset) {
     const int column = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
@@ -102,14 +107,14 @@ static __global__ void exprKernel(uint8_t *dstp, int dst_stride, const int width
     }
 
     for (int i = 0; i < 4; i++) {
-        ((uint8_t *)&output)[i] = performOp<uint8_t>(stack, input, i, plane);
+        ((uint8_t *)&output)[i] = performOp<uint8_t>(stack, input, i, plane, opsOffset);
     }
 
     ((uint32_t *)dstp)[(dst_stride >> 2) * row + column] = output;
 }
 
 template <typename T>
-__device__ float performOp(float *stack, uint32_t *input, int index, int plane) {
+__device__ float performOp(float *stack, uint32_t *input, const int index, const int plane, const int opsOffset) {
     float stacktop = 0;
     float tmp;
 
@@ -117,17 +122,17 @@ __device__ float performOp(float *stack, uint32_t *input, int index, int plane) 
     int i = -1;
     while (true) {
         i++;
-        switch (d_vops[plane][i].op) {
+        switch (d_vops[(opsOffset * 3) + plane][i].op) {
         case opLoadSrc8:
         case opLoadSrc16:
         case opLoadSrcF:
             stack[si] = stacktop;
-            stacktop = ((T *)&input[d_vops[plane][i].e.ival])[index];
+            stacktop = ((T *)&input[d_vops[(opsOffset * 3) + plane][i].e.ival])[index];
             ++si;
             break;
         case opLoadConst:
             stack[si] = stacktop;
-            stacktop = d_vops[plane][i].e.fval;
+            stacktop = d_vops[(opsOffset * 3) + plane][i].e.fval;
             ++si;
             break;
         case opDup:
@@ -228,11 +233,16 @@ __device__ float performOp(float *stack, uint32_t *input, int index, int plane) 
     }
 }
 
-static void VS_CC copyExprOps(const ExprOp *vops, int numOps, int plane) {
+void VS_CC copyExprOps(const ExprOp *vops, int numOps, int plane, int offset) {
     if (numOps > MAX_EXPR_OPS) {
-        throw std::runtime_error("The number of desired operations is greater than the supported threshold of the GPU version of Expr. Tell the author to increase the threshold.");
+        throw std::runtime_error("Expr: The number of desired operations is greater than the supported threshold of the GPU version of Expr. Tell the author to increase the threshold.");
     }
-    CHECKCUDA(cudaMemcpyToSymbol(d_vops[plane], vops, numOps * sizeof(ExprOp)));
+    if (offset > VSFILTER_EXPR_MAX_INSTANCE) {
+        throw std::runtime_error("Expr: The number of Expr instances is greater than what this build supports. Increase VSFILTER_EXPR_MAX_INSTANCE and try again.");
+    }
+    fprintf(stderr, "memcpytosymbol offset: %d\n", ((offset * 3) + plane) * MAX_EXPR_OPS);
+    CHECKCUDA(cudaMemcpyToSymbol(d_vops, vops, numOps * sizeof(ExprOp), ((offset * 3) + plane) * MAX_EXPR_OPS * sizeof(ExprOp), cudaMemcpyHostToDevice));
+    //CHECKCUDA(cudaMemcpyToSymbol(d_vops[plane], vops, numOps * sizeof(ExprOp)));
 }
 
 int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
@@ -251,12 +261,6 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
 
     const uint8_t *srcp[3];
     int src_stride[3];
-
-    //We do this here instead of the plugin's create() function to
-    //prevent data overwrites.
-    for (int i = 0; i < d->vi.format->numPlanes; i++){
-        copyExprOps(&d->ops[i][0], d->ops[i].size(), i);
-    }
 
     for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
         if (d->plane[plane] == poProcess) {
@@ -279,7 +283,7 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
             CHECKCUDA(cudaMemcpyToSymbol(d_src_stride, src_stride, 3 * sizeof(int)));
 
             dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
-            exprKernel<<<grid, threads, 0, stream>>>(dstp, dst_stride, width, height, plane);
+            exprKernel<<<grid, threads, 0, stream>>>(dstp, dst_stride, width, height, plane, d->opsOffset);
         }
     }
 
