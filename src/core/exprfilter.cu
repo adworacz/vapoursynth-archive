@@ -76,7 +76,7 @@ typedef struct {
 #define MAX_STACK_SIZE 10
 
 #ifndef VSFILTER_EXPR_MAX_INSTANCE
-#define VSFILTER_EXPR_MAX_INSTANCE 25
+#define VSFILTER_EXPR_MAX_INSTANCE 17
 #endif
 
 __constant__ ExprOp d_vops[VSFILTER_EXPR_MAX_INSTANCE * 3][MAX_EXPR_OPS];
@@ -236,7 +236,7 @@ void VS_CC copyExprOps(const ExprOp *vops, int numOps, int plane, int offset) {
     if (numOps > MAX_EXPR_OPS) {
         throw std::runtime_error("Expr: The number of desired operations is greater than the supported threshold of the GPU version of Expr. Tell the author to increase the threshold.");
     }
-    if (offset > VSFILTER_EXPR_MAX_INSTANCE) {
+    if (offset >= VSFILTER_EXPR_MAX_INSTANCE) {
         throw std::runtime_error("Expr: The number of Expr instances is greater than what this build supports. Increase VSFILTER_EXPR_MAX_INSTANCE and try again.");
     }
     CHECKCUDA(cudaMemcpyToSymbol(d_vops, vops, numOps * sizeof(ExprOp), ((offset * 3) + plane) * MAX_EXPR_OPS * sizeof(ExprOp)));
