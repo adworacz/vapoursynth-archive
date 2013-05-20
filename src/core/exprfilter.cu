@@ -66,7 +66,7 @@ typedef struct {
 #else
     std::vector<float> stack;
 #endif
-    int opsOffset;
+    volatile int opsOffset;
 } JitExprData;
 
 //Since we don't support the allocation of variable size arrays in
@@ -79,15 +79,13 @@ typedef struct {
 #define VSFILTER_EXPR_MAX_INSTANCE 25
 #endif
 
-__constant__ uint8_t *d_srcp[3];
-__constant__ int d_src_stride[3];
 __constant__ ExprOp d_vops[VSFILTER_EXPR_MAX_INSTANCE * 3][MAX_EXPR_OPS];
 
 template <typename T>
 __device__ float performOp(float *stack, uint32_t *input, const int index, const int plane, const int opsOffset);
 
-static __global__ void exprKernel(uint8_t *dstp, int dst_stride, const int width,
-                                  const int height, const int plane, const int opsOffset) {
+static __global__ void exprKernel(uint8_t *dstp, int stride, const uint8_t * __restrict__ srcp0, const uint8_t * __restrict__ srcp1, const uint8_t * __restrict__ srcp2,
+                                const int width, const int height, const int plane, const int opsOffset) {
     const int column = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
@@ -100,17 +98,24 @@ static __global__ void exprKernel(uint8_t *dstp, int dst_stride, const int width
     uint32_t input[3];
     uint32_t output;
 
-    for (int i = 0; i < 3; i++) {
-        if (d_srcp[i] != NULL) {
-            input[i] = ((uint32_t *)d_srcp[i])[(d_src_stride[i] >> 2) * row + column];
-        }
-    }
+    // for (int i = 0; i < 3; i++) {
+    //     if (d_srcp[(opsOffset * 3) + i] != NULL) {
+    //         input[i] = ((uint32_t *)d_srcp[(opsOffset * 3) + i])[(d_src_stride[(opsOffset * 3) + i] >> 2) * row + column];
+    //     }
+    // }
+
+    if (srcp0 != NULL)
+        input[0] = ((uint32_t *)srcp0)[(stride >> 2) * row + column];
+    if (srcp1 != NULL)
+        input[1] = ((uint32_t *)srcp1)[(stride >> 2) * row + column];
+    if (srcp2 != NULL)
+        input[2] = ((uint32_t *)srcp2)[(stride >> 2) * row + column];
 
     for (int i = 0; i < 4; i++) {
         ((uint8_t *)&output)[i] = performOp<uint8_t>(stack, input, i, plane, opsOffset);
     }
 
-    ((uint32_t *)dstp)[(dst_stride >> 2) * row + column] = output;
+    ((uint32_t *)dstp)[(stride >> 2) * row + column] = output;
 }
 
 template <typename T>
@@ -240,8 +245,7 @@ void VS_CC copyExprOps(const ExprOp *vops, int numOps, int plane, int offset) {
     if (offset > VSFILTER_EXPR_MAX_INSTANCE) {
         throw std::runtime_error("Expr: The number of Expr instances is greater than what this build supports. Increase VSFILTER_EXPR_MAX_INSTANCE and try again.");
     }
-    fprintf(stderr, "memcpytosymbol offset: %d\n", ((offset * 3) + plane) * MAX_EXPR_OPS);
-    CHECKCUDA(cudaMemcpyToSymbol(d_vops, vops, numOps * sizeof(ExprOp), ((offset * 3) + plane) * MAX_EXPR_OPS * sizeof(ExprOp), cudaMemcpyHostToDevice));
+    CHECKCUDA(cudaMemcpyToSymbol(d_vops, vops, numOps * sizeof(ExprOp), (plane) * MAX_EXPR_OPS * sizeof(ExprOp), cudaMemcpyHostToDevice));
     //CHECKCUDA(cudaMemcpyToSymbol(d_vops[plane], vops, numOps * sizeof(ExprOp)));
 }
 
@@ -256,21 +260,22 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
         return 0;
     }
 
+    if (d->opsOffset > VSFILTER_EXPR_MAX_INSTANCE) {
+        throw std::runtime_error("Expr: opsOffset got fucked up somehow.");
+    }
+
     //Change the preferred cache config. Shows significant speedup in our case.
     CHECKCUDA(cudaFuncSetCacheConfig(exprKernel, cudaFuncCachePreferL1));
 
     const uint8_t *srcp[3];
-    int src_stride[3];
 
     for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
         if (d->plane[plane] == poProcess) {
             for (int i = 0; i < 3; i++) {
                 if (d->node[i]) {
                     srcp[i] = vsapi->getReadPtr(src[i], plane);
-                    src_stride[i] = vsapi->getStride(src[i], plane);
                 } else {
                     srcp[i] = NULL;
-                    src_stride[i] = 0;
                 }
             }
 
@@ -279,11 +284,8 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
             int height = vsapi->getFrameHeight(src[0], plane);
             int width = vsapi->getFrameWidth(src[0], plane);
 
-            CHECKCUDA(cudaMemcpyToSymbol(d_srcp, srcp, 3 * sizeof(uint8_t *)));
-            CHECKCUDA(cudaMemcpyToSymbol(d_src_stride, src_stride, 3 * sizeof(int)));
-
             dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
-            exprKernel<<<grid, threads, 0, stream>>>(dstp, dst_stride, width, height, plane, d->opsOffset);
+            exprKernel<<<grid, threads, 0, stream>>>(dstp, dst_stride, srcp[0], srcp[1], srcp[2], width, height, plane, d->opsOffset);
         }
     }
 

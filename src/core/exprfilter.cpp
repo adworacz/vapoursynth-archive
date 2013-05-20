@@ -143,6 +143,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation2(fi, width, height, srcf, planes, src[0], core, flGPU);
+            fprintf(stderr, "offset in getFrame: %d\n", d->opsOffset);
             if (!exprProcessCUDA(src, dst, d, frameCtx, core, vsapi)) {
                 for (int i = 0; i < 3; i++) {
                     if (d->node[i])
@@ -561,6 +562,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         }
 #if FEATURE_CUDA
         d.opsOffset = exprInstanceCount++;
+        fprintf(stderr, "setting ops offset: %d\n", d.opsOffset);
 #endif
 
 #ifdef VS_X86
