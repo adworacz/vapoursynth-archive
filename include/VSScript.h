@@ -18,7 +18,7 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
-#include "vapoursynth.h"
+#include "VapourSynth.h"
 
 typedef struct VSScript VSScript;
 typedef VSScript *VSScriptHandle;
