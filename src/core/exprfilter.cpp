@@ -94,6 +94,9 @@ typedef struct {
     VSVideoInfo vi;
     std::vector<ExprOp> ops[3];
     int plane[3];
+#if FEATURE_CUDA
+    int opsOffset;
+#endif
 #ifdef VS_X86
     void *stack;
 #else
@@ -104,6 +107,7 @@ typedef struct {
 extern "C" void vs_evaluate_expr_sse2(const void *exprs, const uint8_t **rwptrs, const intptr_t *ptroffsets, int numiterations, void *stack);
 
 #if FEATURE_CUDA
+extern void VS_CC copyExprOps(const ExprOp *vops, int numOps, int plane, int offset);
 extern int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
                                        VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 #endif
@@ -138,7 +142,6 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
 
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
-
             dst = vsapi->newVideoFrameAtLocation2(fi, width, height, srcf, planes, src[0], core, flGPU);
             if (!exprProcessCUDA(src, dst, d, frameCtx, core, vsapi)) {
                 for (int i = 0; i < 3; i++) {
@@ -478,6 +481,9 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
     JitExprData d;
     JitExprData *data;
     int err;
+#if FEATURE_CUDA
+    static int exprInstanceCount = 0;
+#endif
 
     try {
 
@@ -547,8 +553,15 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
 
         const SOperation sop[3] = { getLoadOp(vi[0]), getLoadOp(vi[1]), getLoadOp(vi[2]) };
         int maxStackSize = 0;
-        for (int i = 0; i < d.vi.format->numPlanes; i++)
+        for (int i = 0; i < d.vi.format->numPlanes; i++) {
             maxStackSize = std::max(parseExpression(expr[i], d.ops[i], sop, getStoreOp(&d.vi)), maxStackSize);
+#if FEATURE_CUDA
+            copyExprOps(&d.ops[i][0], d.ops[i].size(), i, exprInstanceCount);
+#endif
+        }
+#if FEATURE_CUDA
+        d.opsOffset = exprInstanceCount++;
+#endif
 
 #ifdef VS_X86
         d.stack = vs_aligned_malloc<void>(maxStackSize * 32, 32);
