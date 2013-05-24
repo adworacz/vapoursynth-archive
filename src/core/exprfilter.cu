@@ -245,7 +245,7 @@ void VS_CC copyExprOps(const ExprOp *vops, int numOps, int *opsOffset) {
         throw std::runtime_error("Expr: The number of Expr expressions is greater than what this build supports. Increase VSFILTER_EXPR_MAX_EXPRESSIONS and try again.");
     }
 
-    CHECKCUDA(cudaMemcpyToSymbol(d_vops, vops, numOps * sizeof(ExprOp), offset * MAX_EXPR_OPS * sizeof(ExprOp));
+    CHECKCUDA(cudaMemcpyToSymbol(d_vops, vops, numOps * sizeof(ExprOp), offset * MAX_EXPR_OPS * sizeof(ExprOp)));
     *opsOffset = offset++;
 }
 

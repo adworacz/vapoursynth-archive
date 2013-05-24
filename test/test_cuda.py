@@ -105,8 +105,8 @@ class CoreTestSequence(unittest.TestCase):
         gpub = self.core.std.TransferFrame(clipb, 1)
         gpuc = self.core.std.TransferFrame(clipc, 1)
 
-        cpu = self.core.std.Expr(clips=[clipa, clipb, clipc], expr=["x y + z + 3 /", "", ""])
-        gpu = self.core.std.Expr(clips=[gpua, gpub, gpuc], expr=["x y + z + 3 /", "", ""])
+        cpu = self.core.std.Expr(clips=[clipa, clipb, clipc], expr=["x y + z + 3 /"])
+        gpu = self.core.std.Expr(clips=[gpua, gpub, gpuc], expr=["x y + z + 3 /"])
 
         gpu = self.core.std.TransferFrame(gpu, 0)
 
