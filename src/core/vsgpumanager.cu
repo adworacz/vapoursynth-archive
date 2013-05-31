@@ -79,5 +79,6 @@ VSGPUManager::~VSGPUManager() {
 
     free(streams);
 
-    CHECKCUDA(cudaDeviceReset());
+    CHECKCUDA(cudaDeviceSynchronize());
+    //CHECKCUDA(cudaDeviceReset());
 }
