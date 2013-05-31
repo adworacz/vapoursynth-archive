@@ -20,7 +20,6 @@
 
 #include <stdexcept>
 #include "vsgpumanager.h"
-#include "VSCuda.h"
 
 VSGPUManager::VSGPUManager() {
     cudaDeviceProp * deviceProps = VSCUDAGetDefaultDeviceProperties();
@@ -35,11 +34,11 @@ VSGPUManager::VSGPUManager() {
             numberOfStreams = 16;
     }
 
-    streams = (cudaStream_t *) malloc(numberOfStreams * sizeof(cudaStream_t));
+    streams = (VSCUDAStream *) malloc(numberOfStreams * sizeof(VSCUDAStream));
 
     //Initialize our streams.
     for (int i = 0; i < numberOfStreams; i++)
-        CHECKCUDA(cudaStreamCreate(&streams[i]));
+        CHECKCUDA(cudaStreamCreate(&(streams[i].stream)));
 
     //We are going to assign a stream per frame, or per plane,
     //but either way we need to see what happens when we incorporate lots of streams.
@@ -47,15 +46,19 @@ VSGPUManager::VSGPUManager() {
 }
 
 
-void VSGPUManager::getStreamAtIndex(VSCUDAStream *stream, int index) {
+VSCUDAStream * VSGPUManager::getStreamAtIndex(int index) {
     if (index < 0 || index > numberOfStreams) {
         throw std::runtime_error("VSGPUManager: The requested stream index is out of bounds.");
     }
 
+    VSCUDAStream *stream;
+
     //Grab specific stream.
     lock.lock();
-    stream->stream = streams[index];
+    stream = &streams[index];
     lock.unlock();
+
+    return stream;
 }
 
 int VSGPUManager::getNextStreamIndex() {
@@ -70,8 +73,9 @@ int VSGPUManager::getNextStreamIndex() {
 }
 
 VSGPUManager::~VSGPUManager() {
-    for (int i = 0; i < numberOfStreams; i++)
-        CHECKCUDA(cudaStreamDestroy(streams[i]));
+    for (int i = 0; i < numberOfStreams; i++) {
+        CHECKCUDA(cudaStreamDestroy(streams[i].stream));
+    }
 
     free(streams);
 

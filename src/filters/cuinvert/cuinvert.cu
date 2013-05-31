@@ -85,19 +85,9 @@ static const VSFrameRef *VS_CC invertGetFrame(int n, int activationReason, void 
             //Vapoursynth, we don't have that option, so we lose some speed there.
             dst = vsapi->newVideoFrameAtLocation(fi, width, height, src, core, flGPU);
 
-            int err = 0;
-            int streamIndex = vsapi->propGetInt(vsapi->getFramePropsRO(src), "_CUDAStreamIndex", 0, &err);
-            cudaStream_t stream;
+            VSCUDAStream *stream = vsapi->getStreamForFrame(src, frameCtx, core);
 
-            if (!err) {
-                vsapi->getStreamAtIndex(core, &stream, streamIndex);
-                // vsapi->setFilterError("Merge: Unable to retrieve CUDA stream index for frame.", frameCtx);
-                // vsapi->freeNode(d->node1);
-                // vsapi->freeNode(d->node2);
-                // return 0;
-            }
-
-            invertWithCuda(src, dst, fi, vsapi, stream);
+            invertWithCuda(src, dst, fi, vsapi, stream->stream);
         } else {
             dst = vsapi->newVideoFrame(fi, width, height, src, core);
             // It's processing loop time!
