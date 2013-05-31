@@ -563,27 +563,24 @@ static void VS_CC transferVideoFrame(const VSFrameRef *srcFrame, VSFrameRef *dst
     core->transferVideoFrame(srcFrame->frame, dstFrame->frame, direction);
 }
 
-static int VS_CC getStream(VSCore *core, cudaStream_t *stream) {
-    return core->getGPUManager()->getStream(stream);
+static int VS_CC getNextStreamIndex(VSCore *core) {
+    return core->getGPUManager()->getNextStreamIndex();
 }
 
-static void VS_CC getStreamAtIndex(VSCore *core, cudaStream_t *stream, int index) {
-    core->getGPUManager()->getStream(stream, index);
+static VSCUDAStream *VS_CC getStreamAtIndex(VSCore *core, int index) {
+    return core->getGPUManager()->getStreamAtIndex(index);
 }
 
-static cudaStream_t VS_CC getStreamForFrame(const VSFrameRef *frame, VSFrameContext *frameCtx, VSCore *core) {
+static VSCUDAStream *VS_CC getStreamForFrame(const VSFrameRef *frame, VSFrameContext *frameCtx, VSCore *core) {
     int err = 0;
     int streamIndex = propGetInt(getFramePropsRO(frame), "_CUDAStreamIndex", 0, &err);
-    cudaStream_t stream;
 
     if (err && frameCtx) {
         setFilterError("getStreamForFrame: Unable to retrieve CUDA stream for frame.", frameCtx);
-        return 0;
+        return NULL;
     }
 
-    getStreamAtIndex(core, &stream, streamIndex);
-
-    return stream;
+    return getStreamAtIndex(core, streamIndex);
 }
 #endif
 
@@ -670,7 +667,7 @@ const VSAPI vsapi = {
     &newVideoFrameAtLocation,
     &newVideoFrameAtLocation2,
     &transferVideoFrame,
-    &getStream,
+    &getNextStreamIndex,
     &getStreamAtIndex,
     &getStreamForFrame,
 #endif

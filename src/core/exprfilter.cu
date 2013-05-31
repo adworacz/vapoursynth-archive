@@ -239,7 +239,7 @@ void VS_CC copyExprOps(const ExprOp *vops, int numOps, int *opsOffset) {
     if (numOps > MAX_EXPR_OPS) {
         throw std::runtime_error("Expr: The number of desired operations is greater than the supported threshold of the GPU version of Expr. Tell the author to increase the threshold.");
     } else if (numOps == 0) {
-        *opsOffset = NULL;
+        *opsOffset = 0;
         return;
     } else if (offset >= VSFILTER_EXPR_MAX_EXPRESSIONS) {
         throw std::runtime_error("Expr: The number of Expr expressions is greater than what this build supports. Increase VSFILTER_EXPR_MAX_EXPRESSIONS and try again.");
@@ -254,9 +254,9 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
     int blockSize = VSCUDAGetBasicBlocksize();
     dim3 threads(blockSize, blockSize);
 
-    cudaStream_t stream = vsapi->getStreamForFrame(src[0], frameCtx, core);
+    VSCUDAStream *stream = vsapi->getStreamForFrame(src[0], frameCtx, core);
 
-    if (stream == 0) {
+    if (stream == NULL) {
         return 0;
     }
 
@@ -281,7 +281,7 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
             int width = vsapi->getFrameWidth(src[0], plane);
 
             dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
-            exprKernel<<<grid, threads, 0, stream>>>(dstp, dst_stride, srcp[0], srcp[1], srcp[2], width, height, d->opsOffset[plane]);
+            exprKernel<<<grid, threads, 0, stream->stream>>>(dstp, dst_stride, srcp[0], srcp[1], srcp[2], width, height, d->opsOffset[plane]);
         }
     }
 

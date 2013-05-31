@@ -56,4 +56,8 @@ static inline int VSCUDAGetBasicBlocksize() {
     return (deviceProp->major < 2) ? 16 : 32;
 }
 
+struct VSCUDAStream {
+    cudaStream_t stream;
+};
+
 #endif

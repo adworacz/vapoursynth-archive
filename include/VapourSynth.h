@@ -64,7 +64,7 @@ typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
 
 #if FEATURE_CUDA
-    #include <cuda_runtime.h>
+    typedef struct VSCUDAStream VSCUDAStream;
 #endif
 
 typedef enum VSColorFamily {
@@ -253,13 +253,9 @@ typedef FrameLocation (VS_CC *VSGetFrameLocation)(const VSFrameRef *f);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation2)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core);
-typedef int (VS_CC *VSGetStream)(VSCore *core, cudaStream_t *stream);
-typedef void (VS_CC *VSGetStreamAtIndex)(VSCore *core, cudaStream_t *stream, int index);
-
-//Unfortunately, this causes a dependency on the CUDA libs.
-//This forces CPU-only filters to import a library that they don't need.
-//Ideally, we can get around this somehow...
-typedef cudaStream_t (VS_CC *VSGetStreamForFrame)(const VSFrameRef *frame, VSFrameContext *frameCtx, VSCore *core);
+typedef int (VS_CC *VSGetNextStreamIndex)(VSCore *core);
+typedef VSCUDAStream *(VS_CC *VSGetStreamAtIndex)(VSCore *core, int index);
+typedef VSCUDAStream *(VS_CC *VSGetStreamForFrame)(const VSFrameRef *frame, VSFrameContext *frameCtx, VSCore *core);
 #endif
 
 // property access
@@ -405,7 +401,7 @@ struct VSAPI {
     VSNewVideoFrameAtLocation newVideoFrameAtLocation;
     VSNewVideoFrameAtLocation2 newVideoFrameAtLocation2;
     VSTransferVideoFrame transferVideoFrame;
-    VSGetStream getStream;
+    VSGetNextStreamIndex getNextStreamIndex;
     VSGetStreamAtIndex getStreamAtIndex;
     VSGetStreamForFrame getStreamForFrame;
 #endif
