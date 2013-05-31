@@ -1756,8 +1756,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (gpu) {
 #if FEATURE_CUDA
         d.f = vsapi->newVideoFrameAtLocation(d.vi.format, d.vi.width, d.vi.height, 0, core, flGPU);
-        cudaStream_t stream;
-        vsapi->propSetInt(vsapi->getFramePropsRW(d.f), "_CUDAStreamIndex", vsapi->getStream(core, &stream), paAppend);
+        vsapi->propSetInt(vsapi->getFramePropsRW(d.f), "_CUDAStreamIndex", vsapi->getNextStreamIndex(core), paAppend);
 
         if (!blankClipProcessCUDA(&color, &d, core, vsapi))
             RETERROR("Unable to create BlankClip on the GPU");
@@ -3548,8 +3547,7 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
 
             //Set the associated CUDA stream information for this frame.
             //This will then be used by GPU filters down the line.
-            cudaStream_t stream;
-            vsapi->propSetInt(vsapi->getFramePropsRW(src_gpu), "_CUDAStreamIndex", vsapi->getStream(core, &stream), paAppend);
+            vsapi->propSetInt(vsapi->getFramePropsRW(src_gpu), "_CUDAStreamIndex", vsapi->getNextStreamIndex(core), paAppend);
 
             vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core);
 

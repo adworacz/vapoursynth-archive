@@ -18,6 +18,7 @@
 * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include <stdexcept>
 #include "vsgpumanager.h"
 #include "VSCuda.h"
 
@@ -46,29 +47,26 @@ VSGPUManager::VSGPUManager() {
 }
 
 
-int VSGPUManager::getStream(cudaStream_t *stream, int index) {
-    if (index == -1) {
-        return getStreams(&stream, 1);
+void VSGPUManager::getStreamAtIndex(VSCUDAStream *stream, int index) {
+    if (index < 0 || index > numberOfStreams) {
+        throw std::runtime_error("VSGPUManager: The requested stream index is out of bounds.");
     }
 
     //Grab specific stream.
     lock.lock();
-    *stream = streams[index];
+    stream->stream = streams[index];
     lock.unlock();
-    return -1;
 }
 
-int VSGPUManager::getStreams(cudaStream_t **desiredStreams, int numStreams) {
-    lock.lock();
-    int retStreamIndex = streamIndex;
-    for (int i = 0; i < numStreams; i++){
-        (*desiredStreams)[i] = streams[streamIndex];
+int VSGPUManager::getNextStreamIndex() {
+    int index;
 
-        streamIndex = (streamIndex + 1) % numberOfStreams;
-    }
+    lock.lock();
+    index = streamIndex;
+    streamIndex = (streamIndex + 1) % numberOfStreams;
     lock.unlock();
 
-    return retStreamIndex;
+    return index;
 }
 
 VSGPUManager::~VSGPUManager() {

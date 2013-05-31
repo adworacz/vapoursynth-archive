@@ -21,7 +21,8 @@
 #define VSGPUMANAGER
 
 #include <QtCore/QtCore>
-#include <cuda_runtime.h>
+// #include <cuda_runtime.h>
+#include "VSCuda.h"
 
 struct VSGPUManager {
 private:
@@ -31,8 +32,8 @@ private:
     QMutex lock;
 
 public:
-    int getStream(cudaStream_t *stream, int index = -1);
-    int getStreams(cudaStream_t **desiredStreams, int numStreams);
+    void getStreamAtIndex(VSCUDAStream *stream, int index = -1);
+    int getNextStreamIndex();
 
     VSGPUManager();
     ~VSGPUManager();
