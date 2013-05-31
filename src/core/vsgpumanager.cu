@@ -80,5 +80,8 @@ VSGPUManager::~VSGPUManager() {
     free(streams);
 
     CHECKCUDA(cudaDeviceSynchronize());
-//    CHECKCUDA(cudaDeviceReset());
+    //For some reason, calling cudaDeviceReset() here
+    //causes a crash on script exit. Not quite sure why,
+    //needs to be investigated more.
+    //CHECKCUDA(cudaDeviceReset());
 }
