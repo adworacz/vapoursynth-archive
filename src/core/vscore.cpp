@@ -515,6 +515,10 @@ VSCore::~VSCore() {
     delete threadPool;
     foreach(VSPlugin * p, plugins)
         delete p;
+
+#if FEATURE_CUDA
+    delete gpuManager;
+#endif
 }
 
 QMutex VSCore::filterLock(QMutex::Recursive);
