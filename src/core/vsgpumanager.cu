@@ -75,5 +75,7 @@ VSGPUManager::~VSGPUManager() {
     for (int i = 0; i < numberOfStreams; i++)
         CHECKCUDA(cudaStreamDestroy(streams[i]));
 
+    free(streams);
+
     CHECKCUDA(cudaDeviceReset());
 }
