@@ -26,7 +26,7 @@
 
 //Note: FrameLocation is necessary in order to manage memory correctly in the VSFrameData destructor.
 VSFrameData::VSFrameData(int width, int height, int *stride, int bytesPerSample, MemoryUse * mem,
-                         FrameLocation fLocation) : mem(mem), frameLocation(fLocation) {
+                         FrameLocation fLocation, const VSCUDAStream *stream_in) : mem(mem), frameLocation(fLocation) {
     cudaPitchedPtr d_ptr;
 
     if (fLocation != flGPU) {
@@ -36,6 +36,7 @@ VSFrameData::VSFrameData(int width, int height, int *stride, int bytesPerSample,
     CHECKCUDA(cudaMalloc3D(&d_ptr, make_cudaExtent(width * bytesPerSample, height, 1)));
     data = (uint8_t *) d_ptr.ptr;
     *stride = d_ptr.pitch;
+    stream = stream_in;
     size = *stride * height;
     mem->add(size);
 }
@@ -44,6 +45,7 @@ VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
     size = d.size;
     mem = d.mem;
     frameLocation = d.frameLocation;
+    stream = d.stream;
 
     if (frameLocation == flLocal) {
         data = vs_aligned_malloc<uint8_t>(size, VSFrame::alignment);
@@ -51,7 +53,7 @@ VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
         memcpy(data, d.data, size);
     } else {
         CHECKCUDA(cudaMalloc(&data, size));
-        CHECKCUDA(cudaMemcpy(data, d.data, size, cudaMemcpyDeviceToDevice));
+        CHECKCUDA(cudaMemcpyAsync(data, d.data, size, cudaMemcpyDeviceToDevice, stream->stream));
     }
 
     mem->add(size);
@@ -71,18 +73,19 @@ void VSFrameData::transferData(VSFrameData *dst, int dstStride,
                                int srcStride, int width, int height, int bytesPerSample,
                                FrameTransferDirection direction) const {
     cudaMemcpyKind transferKind = (direction == ftdCPUtoGPU ? cudaMemcpyHostToDevice : cudaMemcpyDeviceToHost);
+    const VSCUDAStream *newStream;
 
-    //We are not using cudaMemcpy2DAsync for a reason here.
-    //Strangely, it offers no performance benefit, and tests showed a strange glitch error
-    //occured on the first few frames of a clip with certain combinations of the Merge filter.
-    //No idea why the error occurred, but using cudaMemcpy2D (no async) is safe (glitch-free)
-    //and offers the same performance.
-    CHECKCUDA(cudaMemcpy2D(dst->data, dstStride, data, srcStride, width * bytesPerSample, height, transferKind));
+    if (direction == ftdCPUtoGPU)
+        newStream = dst->stream;
+    else
+        newStream = stream;
+
+    CHECKCUDA(cudaMemcpy2DAsync(dst->data, dstStride, data, srcStride, width * bytesPerSample, height, transferKind, newStream->stream));
 }
 
 //Note: future integration can use default parameters to prevent code duplication.
 VSFrame::VSFrame(const VSFormat * f, int width, int height, const VSFrame * propSrc, VSCore * core,
-                 FrameLocation fLocation) : format(f), width(width), height(height),
+                 FrameLocation fLocation, const VSCUDAStream **streams) : format(f), width(width), height(height),
                  frameLocation(fLocation) {
     if (!f || width <= 0 || height <= 0)
         qFatal("Invalid new frame");
@@ -123,12 +126,12 @@ VSFrame::VSFrame(const VSFormat * f, int width, int height, const VSFrame * prop
 
             data[plane] =
                 new VSFrameData(compensatedWidth, compensatedHeight, &stride[plane], f->bytesPerSample,
-                                core->gpuMemory, frameLocation);
+                                core->gpuMemory, frameLocation, streams[plane]);
         }
     }
 }
 
-VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation) : format(f), width(width), height(height), frameLocation(fLocation) {
+VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation, const VSCUDAStream **streams) : format(f), width(width), height(height), frameLocation(fLocation) {
     if (!f || width <= 0 || height <= 0)
         qFatal("Invalid new frame");
 
@@ -167,7 +170,7 @@ VSFrame::VSFrame(const VSFormat *f, int width, int height, const VSFrame * const
                 data[i] = new VSFrameData(stride[i] * compensatedHeight, core->memory);
             else
                 data[i] = new VSFrameData(compensatedWidth, compensatedHeight, &stride[i], f->bytesPerSample,
-                            core->gpuMemory, frameLocation);
+                            core->gpuMemory, frameLocation, streams[i]);
         }
     }
 }
@@ -186,12 +189,41 @@ void VSFrame::transferFrame(VSFrame &dstFrame, FrameTransferDirection direction)
     }
 }
 
+const VSCUDAStream *VSFrame::getStream(int plane) const {
+    if (plane < 0 || plane >= format->numPlanes)
+        qFatal("Invalid plane requested");
+
+    switch (plane) {
+    case 0:
+        return data[0].constData()->stream;
+    case 1:
+        return data[1].constData()->stream;
+    case 2:
+        return data[2].constData()->stream;
+    default:
+        return NULL;
+    }
+}
+
 PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, FrameLocation fLocation) {
-    return PVideoFrame(new VSFrame(f, width, height, propSrc, this, fLocation));
+    const VSCUDAStream *streams[3];
+    for(int plane = 0; plane < f->numPlanes; plane++) {
+        streams[plane] = gpuManager->getStreamAtIndex(gpuManager->getNextStreamIndex());
+    }
+    return PVideoFrame(new VSFrame(f, width, height, propSrc, this, fLocation, streams));
 }
 
 PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc, FrameLocation fLocation) {
-    return PVideoFrame(new VSFrame(f, width, height, planeSrc, planes, propSrc, this, fLocation));
+    const VSCUDAStream *streams[3];
+
+    //Only retrive new streams if we don't have a prior source.
+    for(int plane = 0; plane < f->numPlanes; plane++) {
+        if(!planeSrc[plane])
+            streams[plane] = gpuManager->getStreamAtIndex(gpuManager->getNextStreamIndex());
+        else
+            streams[plane] = NULL;
+    }
+    return PVideoFrame(new VSFrame(f, width, height, planeSrc, planes, propSrc, this, fLocation, streams));
 }
 
 void VSCore::transferVideoFrame(const PVideoFrame &srcf, PVideoFrame &dstf, FrameTransferDirection direction){

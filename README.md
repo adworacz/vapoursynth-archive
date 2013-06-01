@@ -17,7 +17,7 @@ TODO (for my use only):
      memory acceses, a la CUDA SDK's Transpose kernel.
    * Remove the unnecessary VSFormat parameter passing in simplefilters.cu, as the VSVideoInfo class already has the format.
    * Rework getStream(), as it's not really used correctly.
-
+   * Change kernel wrappers to void from int for fully streamed frame data.
 
 Filters to be ported:
    * Lut2

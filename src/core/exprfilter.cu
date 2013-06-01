@@ -254,12 +254,6 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
     int blockSize = VSCUDAGetBasicBlocksize();
     dim3 threads(blockSize, blockSize);
 
-    VSCUDAStream *stream = vsapi->getStreamForFrame(src[0], frameCtx, core);
-
-    if (stream == NULL) {
-        return 0;
-    }
-
     //Change the preferred cache config. Shows significant speedup in our case.
     CHECKCUDA(cudaFuncSetCacheConfig(exprKernel, cudaFuncCachePreferL1));
 
@@ -279,6 +273,7 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
             int dst_stride = vsapi->getStride(dst, plane);
             int height = vsapi->getFrameHeight(src[0], plane);
             int width = vsapi->getFrameWidth(src[0], plane);
+            const VSCUDAStream *stream = vsapi->getStream(src[0], plane);
 
             dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
             exprKernel<<<grid, threads, 0, stream->stream>>>(dstp, dst_stride, srcp[0], srcp[1], srcp[2], width, height, d->opsOffset[plane]);

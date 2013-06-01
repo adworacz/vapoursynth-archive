@@ -230,8 +230,9 @@ public:
     ~VSFrameData();
 
 #if FEATURE_CUDA
-    VSFrameData(int width, int height, int *stride, int bytesPerSample, MemoryUse *mem, FrameLocation fLocation);
+    VSFrameData(int width, int height, int *stride, int bytesPerSample, MemoryUse *mem, FrameLocation fLocation, const VSCUDAStream *stream);
     void transferData(VSFrameData *dst, int dstStride, int srcStride, int width, int height, int bytesPerSample, FrameTransferDirection direction) const;
+    const VSCUDAStream *stream;
 #endif
 
 };
@@ -252,10 +253,11 @@ public:
     VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFrame &f);
 
-#ifdef __CUDACC__
-    VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation);
-    VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation);
+#ifdef FEATURE_CUDA
+    VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation, const VSCUDAStream **streams);
+    VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation, const VSCUDAStream **streams);
     void transferFrame(VSFrame &dstFrame, FrameTransferDirection direction) const;
+    const VSCUDAStream *getStream(int plane) const;
 #endif
 
     VSMap &getProperties() {

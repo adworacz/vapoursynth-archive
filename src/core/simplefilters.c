@@ -3544,13 +3544,7 @@ static const VSFrameRef *VS_CC transferFrameGetFrame(int n, int activationReason
             }
 
             VSFrameRef *src_gpu = vsapi->newVideoFrameAtLocation(fi, width, height, src, core, flGPU);
-
-            //Set the associated CUDA stream information for this frame.
-            //This will then be used by GPU filters down the line.
-            vsapi->propSetInt(vsapi->getFramePropsRW(src_gpu), "_CUDAStreamIndex", vsapi->getNextStreamIndex(core), paAppend);
-
             vsapi->transferVideoFrame(src, src_gpu, ftdCPUtoGPU, core);
-
             vsapi->freeFrame(src);
 
             return src_gpu;
