@@ -51,14 +51,7 @@ VSCUDAStream * VSGPUManager::getStreamAtIndex(int index) {
         throw std::runtime_error("VSGPUManager: The requested stream index is out of bounds.");
     }
 
-    VSCUDAStream *stream;
-
-    //Grab specific stream.
-    lock.lock();
-    stream = &streams[index];
-    lock.unlock();
-
-    return stream;
+    return &streams[index];
 }
 
 int VSGPUManager::getNextStreamIndex() {

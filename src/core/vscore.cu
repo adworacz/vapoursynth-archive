@@ -176,8 +176,6 @@ void VSFrame::transferFrame(VSFrame &dstFrame, FrameTransferDirection direction)
     if(dstFrame.width != width || dstFrame.height != height)
         qFatal("The source frame and destination frame dimensions do not match.");
 
-    //Double check the strides, just to make sure cuda isn't pulling any nasty shit.
-    //This can probably safely be removed.
     if(dstFrame.format->numPlanes != format->numPlanes)
         qFatal("The source frame and destination frame do not have the same number of planes.");
 

@@ -229,7 +229,6 @@ public:
     VSFrameData(const VSFrameData &d);
     ~VSFrameData();
 
-
 #if FEATURE_CUDA
     VSFrameData(int width, int height, int *stride, int bytesPerSample, MemoryUse *mem, FrameLocation fLocation);
     void transferData(VSFrameData *dst, int dstStride, int srcStride, int width, int height, int bytesPerSample, FrameTransferDirection direction) const;
