@@ -80,12 +80,7 @@ void VSFrameData::transferData(VSFrameData *dst, int dstStride,
     else
         newStream = stream;
 
-    //cudaEvent_t sync;
-    //CHECKCUDA(cudaEventCreate(&sync, cudaEventDisableTiming | cudaEventBlockingSync));
     CHECKCUDA(cudaMemcpy2DAsync(dst->data, dstStride, data, srcStride, width * bytesPerSample, height, transferKind, newStream->stream));
-    //CHECKCUDA(cudaEventRecord(sync, newStream->stream));
-    //CHECKCUDA(cudaEventSynchronize(sync));
-    //CHECKCUDA(cudaEventDestroy(sync));
 }
 
 //Note: future integration can use default parameters to prevent code duplication.

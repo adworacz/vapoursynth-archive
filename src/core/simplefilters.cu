@@ -55,7 +55,7 @@ VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *d
         int padl = (d->left >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
         int padr = (d->right >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
         int color = d->color.i[plane];
-        const VSCUDAStream *stream = vsapi->getStream(src, plane);
+        const VSCUDAStream *stream = vsapi->getStream(dst, plane);
 
         // Pad TOP
         switch (d->vi->format->bytesPerSample) {
@@ -75,7 +75,7 @@ VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *d
         switch (d->vi->format->bytesPerSample) {
         case 1:
             CHECKCUDA(cudaMemset2DAsync(dstdata, dststride, color, padl, srcheight, stream->stream)); //Maybe remove the Async, have had problems in the past.
-            CHECKCUDA(cudaMemcpy2D(dstdata + padl, dststride, srcdata, srcstride, rowsize, srcheight, cudaMemcpyDeviceToDevice));
+            CHECKCUDA(cudaMemcpy2DAsync(dstdata + padl, dststride, srcdata, srcstride, rowsize, srcheight, cudaMemcpyDeviceToDevice, stream->stream));
             CHECKCUDA(cudaMemset2DAsync(dstdata + padl + rowsize, dststride, color, padr, srcheight, stream->stream));
             // vs_memset8(dstdata, color, padl);
             // memcpy(dstdata + padl, srcdata, rowsize);
@@ -202,7 +202,7 @@ VS_EXTERN_C int VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, con
 
         if (d->process[plane]) {
             int w = vsapi->getFrameWidth(src, plane);
-            const VSCUDAStream *stream = vsapi->getStream(src, plane);
+            const VSCUDAStream *stream = vsapi->getStream(dst, plane);
 
             if (fi->bytesPerSample == 1) {
                 dim3 grid(ceil((float)w / (threads.x * sizeof(uint32_t))), ceil((float)h / threads.y));
@@ -290,7 +290,7 @@ VS_EXTERN_C int VS_CC transposeProcessCUDA(const VSFrameRef *src, VSFrameRef *ds
         int src_stride = vsapi->getStride(src, plane);
         uint8_t *dstp = vsapi->getWritePtr(dst, plane);
         int dst_stride = vsapi->getStride(dst, plane);
-        const VSCUDAStream *stream = vsapi->getStream(src, plane);
+        const VSCUDAStream *stream = vsapi->getStream(dst, plane);
 
         switch (d->vi.format->bytesPerSample) {
             case 1:
@@ -370,7 +370,7 @@ VS_EXTERN_C int VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef 
             const uint8_t *srcp1 = vsapi->getReadPtr(src1, plane);
             const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            const VSCUDAStream *stream = vsapi->getStream(src1, plane);
+            const VSCUDAStream *stream = vsapi->getStream(dst, plane);
 
             if (d->vi->format->sampleType == stInteger) {
                 const int round = 1 << (MergeShift - 1);
@@ -457,7 +457,7 @@ VS_EXTERN_C int VS_CC maskedMergeProcessCUDA(const VSFrameRef *src1, const VSFra
             const uint8_t *srcp2 = vsapi->getReadPtr(src2, plane);
             const uint8_t *maskp = vsapi->getReadPtr((plane && mask23) ? mask23 : mask, d->first_plane ? 0 : plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
-            const VSCUDAStream *stream = vsapi->getStream(src2, plane);
+            const VSCUDAStream *stream = vsapi->getStream(dst, plane);
 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bytesPerSample == 1) {
