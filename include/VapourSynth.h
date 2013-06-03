@@ -253,9 +253,6 @@ typedef FrameLocation (VS_CC *VSGetFrameLocation)(const VSFrameRef *f);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation2)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core);
-typedef int (VS_CC *VSGetNextStreamIndex)(VSCore *core);
-typedef const VSCUDAStream *(VS_CC *VSGetStreamAtIndex)(VSCore *core, int index);
-typedef const VSCUDAStream *(VS_CC *VSGetStreamForFrame)(const VSFrameRef *frame, VSFrameContext *frameCtx, VSCore *core);
 typedef const VSCUDAStream *(VS_CC *VSGetStream)(const VSFrameRef *frame, int plane);
 #endif
 
@@ -402,9 +399,6 @@ struct VSAPI {
     VSNewVideoFrameAtLocation newVideoFrameAtLocation;
     VSNewVideoFrameAtLocation2 newVideoFrameAtLocation2;
     VSTransferVideoFrame transferVideoFrame;
-    VSGetNextStreamIndex getNextStreamIndex;
-    VSGetStreamAtIndex getStreamAtIndex;
-    VSGetStreamForFrame getStreamForFrame;
     VSGetStream getStream;
 #endif
 

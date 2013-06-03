@@ -208,7 +208,7 @@ const VSCUDAStream *VSFrame::getStream(int plane) const {
 PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, FrameLocation fLocation) {
     const VSCUDAStream *streams[3];
     for(int plane = 0; plane < f->numPlanes; plane++) {
-        streams[plane] = gpuManager->getStreamAtIndex(gpuManager->getNextStreamIndex());
+        streams[plane] = gpuManager->getNextStream();
     }
     return PVideoFrame(new VSFrame(f, width, height, propSrc, this, fLocation, streams));
 }
@@ -219,7 +219,7 @@ PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, cons
     //Only retrive new streams if we don't have a prior source.
     for(int plane = 0; plane < f->numPlanes; plane++) {
         if(!planeSrc[plane])
-            streams[plane] = gpuManager->getStreamAtIndex(gpuManager->getNextStreamIndex());
+            streams[plane] = gpuManager->getNextStream();
         else
             streams[plane] = NULL;
     }

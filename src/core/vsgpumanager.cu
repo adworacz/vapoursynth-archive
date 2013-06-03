@@ -45,24 +45,15 @@ VSGPUManager::VSGPUManager() {
     streamIndex = 0;
 }
 
-
-VSCUDAStream * VSGPUManager::getStreamAtIndex(int index) {
-    if (index < 0 || index > numberOfStreams) {
-        throw std::runtime_error("VSGPUManager: The requested stream index is out of bounds.");
-    }
-
-    return &streams[index];
-}
-
-int VSGPUManager::getNextStreamIndex() {
-    int index;
+VSCUDAStream * VSGPUManager::getNextStream() {
+    VSCUDAStream *stream;
 
     lock.lock();
-    index = streamIndex;
+    stream = &streams[streamIndex];
     streamIndex = (streamIndex + 1) % numberOfStreams;
     lock.unlock();
 
-    return index;
+    return stream;
 }
 
 VSGPUManager::~VSGPUManager() {

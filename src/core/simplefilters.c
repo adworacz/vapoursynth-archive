@@ -1756,7 +1756,6 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (gpu) {
 #if FEATURE_CUDA
         d.f = vsapi->newVideoFrameAtLocation(d.vi.format, d.vi.width, d.vi.height, 0, core, flGPU);
-        vsapi->propSetInt(vsapi->getFramePropsRW(d.f), "_CUDAStreamIndex", vsapi->getNextStreamIndex(core), paAppend);
 
         if (!blankClipProcessCUDA(&color, &d, core, vsapi))
             RETERROR("Unable to create BlankClip on the GPU");

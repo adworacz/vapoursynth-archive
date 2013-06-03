@@ -32,8 +32,7 @@ private:
     QMutex lock;
 
 public:
-    VSCUDAStream *getStreamAtIndex(int index);
-    int getNextStreamIndex();
+    VSCUDAStream * getNextStream();
 
     VSGPUManager();
     ~VSGPUManager();
