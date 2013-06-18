@@ -40,3 +40,11 @@ Filters ported:
    * Expr
 
 For the memory intensive stuff (shuffleplanes, transpose, etc...) more work and research should be put forth to avoid partition camping issues.
+
+NOTES:
+   * Expr: Expr does see a performance increase with the use of constant memory to contain the OPS. However, constant memory is scarce
+   and heavy amounts of Expr use can hit the artificial limit set at compile time. The current implementation uses just Global Memory
+   to store OPS, which is more adaptable and "infinitely scalable". Constant memory offers 5-10% performance boost for Expr, but
+   it has limitations with respect to usability. So for now, we go scalable versus performance. Its still way faster than the SSE2,
+   CPU version.
+
