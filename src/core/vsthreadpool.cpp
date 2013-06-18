@@ -30,7 +30,7 @@ void VSThread::stopThread() {
 
 void VSThread::run() {
     owner->lock.lock();
-    owner->activeThreads++;
+	owner->activeThreads.ref();
 
     while (true) {
         bool ranTask = false;
@@ -173,20 +173,26 @@ void VSThread::run() {
             }
         }
 
-        if (!ranTask && !stop) {
-            owner->activeThreads--;
+        if ((!ranTask && !stop) || (owner->activeThreadCount() > owner->threadCount())) {
+			owner->activeThreads.deref();
+			owner->idleThreads++;
             owner->newWork.wait(&owner->lock);
-            owner->activeThreads++;
-        } else if (stop) {
-            owner->activeThreads--;
+			owner->idleThreads--;
+			owner->activeThreads.ref();
+        }
+
+		if (stop) {
+			owner->idleThreads--;
+			owner->activeThreads.deref();
             owner->lock.unlock();
             return;
         }
     }
 }
 
-VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0) {
-    setThreadCount(threads > 0 ? threads : QThread::idealThreadCount());
+VSThreadPool::VSThreadPool(VSCore *core, int threads) : core(core), activeThreads(0), idleThreads(0) {
+	maxThreads = threads > 0 ? threads : QThread::idealThreadCount();
+	QMutexLocker m(&lock);
 }
 
 int VSThreadPool::activeThreadCount() const {
@@ -194,42 +200,33 @@ int VSThreadPool::activeThreadCount() const {
 }
 
 int VSThreadPool::threadCount() const {
-    return allThreads.count();
+    return maxThreads;
 }
 
-void VSThreadPool::setThreadCount(int threadCount) {
-    QMutexLocker m(&lock);
+void VSThreadPool::spawnThread() {
+    VSThread *vst = new VSThread(this);
+    allThreads.insert(vst);
+    vst->start();
+}
 
-    while (threadCount > allThreads.count()) {
-        VSThread *vst = new VSThread(this);
-        allThreads.insert(vst);
-        vst->start();
-    }
-
-    while (threadCount < allThreads.count()) {
-        VSThread *t = *allThreads.begin();
-        t->stopThread();
-        newWork.wakeAll();
-        m.unlock();
-        t->wait();
-        m.relock();
-        allThreads.remove(t);
-        delete t;
-        newWork.wakeAll();
-    }
+void VSThreadPool::setThreadCount(int threads) {
+	maxThreads = threads;
 }
 
 void VSThreadPool::wakeThread() {
-    if (activeThreads < threadCount())
+	if (activeThreads < maxThreads && idleThreads == 0)
+		spawnThread();
+
+    if (activeThreads < maxThreads)
         newWork.wakeOne();
 }
 
 void VSThreadPool::releaseThread() {
-    setThreadCount(allThreads.count() + 1);
+	activeThreads.deref();
 }
 
 void VSThreadPool::reserveThread() {
-    setThreadCount(allThreads.count() - 1);
+    activeThreads.ref();
 }
 
 void VSThreadPool::notifyCaches(CacheActivation reason) {
@@ -240,7 +237,7 @@ void VSThreadPool::notifyCaches(CacheActivation reason) {
 void VSThreadPool::start(const PFrameContext &context) {
     Q_ASSERT(context);
     QMutexLocker m(&lock);
-    startInternal(context);
+	startInternal(context);
 }
 
 void VSThreadPool::returnFrame(const PFrameContext &rCtx, const PVideoFrame &f) {
@@ -260,7 +257,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
     //unfortunately this would probably be quite slow for deep scripts so just hope the cache catches it
 
     if (context->n < 0)
-		qFatal("Negative frame request by: %s", context->clip->name.constData());
+		qFatal("Negative frame request by: %s", context->clip->getName().constData());
 
     // check to see if it's time to reevaluate cache sizes
     if (core->memory->isOverLimit()) {
@@ -351,10 +348,27 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
 
 }
 
-void VSThreadPool::waitForDone() {
+bool VSThreadPool::isWorkerThread() {
+	QMutexLocker m(&lock);
+	return allThreads.contains((VSThread *)QThread::currentThread());
+}
 
+void VSThreadPool::waitForDone() {
+	// todo
 }
 
 VSThreadPool::~VSThreadPool() {
-    setThreadCount(0);
+	QMutexLocker m(&lock);
+
+    while (allThreads.count()) {
+        VSThread *t = *allThreads.begin();
+        t->stopThread();
+        newWork.wakeAll();
+        m.unlock();
+        t->wait();
+        m.relock();
+        allThreads.remove(t);
+        delete t;
+        newWork.wakeAll();
+    }
 };

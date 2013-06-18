@@ -12,8 +12,8 @@ Here's a sample script to be inspired by::
    import vapoursynth as vs
    # needed for stdout
    import sys
-   # create a core instance
-   core = vs.Core()
+   # get the core instance
+   core = vs.get_core()
    # load a native vapoursynth plugin
    # you should use absolute paths as the working directory may not be what you think it is
    core.std.LoadPlugin(path=r'c:\plugins\ffms2.dll')
@@ -24,7 +24,7 @@ Here's a sample script to be inspired by::
    ret = core.ffms2.Source(source='Super Size Me.avi')
    # apply the undot filter to the video
    ret = core.avs.UnDot(clip=ret)
-   # output the clip to stdout with y4m headers (useful for x264 encoding/mplayer playback)
-   ret.output(sys.stdout, y4m=True)
+   # set the clip to be output
+   ret.set_output()
 
 Remember that most VapourSynth objects have a quite nice string representation in Python, so if you want to know more about an instance just call print().

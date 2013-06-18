@@ -2,21 +2,34 @@ Python Reference
 ================
 Here all the classes and functions in the Python module will be documented.
 
-Classes
-#######
-.. py:class:: Core([threads = 0, add_cache = True, accept_lowercase = False])
+Classes and Functions
+#####################
+.. py:function:: get_core([threads = 0, add_cache = True, accept_lowercase = False])
 
-   Create a new instance of the Core class. Setting *threads* to a value greater than zero overrides the autodetection.
+   Get the singleton Core object. If it is the first time the function is called the Core will be instantiated with the given options.
+   If the Core already has been instantiated all options are ignored. Setting *threads* to a value greater than zero overrides the autodetection.
+   
+.. py:function:: clear_output(index = 0)
+
+   Clears a previously set clip for output. Note that if the clip is still in use by an application that embeds VapourSynth it may cause fatal errors.
+   
+.. py:function:: clear_outputs()
+
+   Clears all clips set for output in the current environment. Note that if the clip is still in use by an application that embeds VapourSynth it may cause fatal errors.
+
+.. py:class:: Core
+
+   The *Core* class uses a singleton pattern, use *get_core()* to obtain an instance.
    All loaded plugins are exposed as attributes of the core object. These attributes in turn hold the contained functions in the plugin.
-   Use *list_functions()* to obtain a full list of all the currently named plugins you may call this way.
+   Use *get_plugins()* to obtain a full list of all currently loaded plugins you may call this way.
    
    .. py:method:: set_max_cache_size(mb)
    
       Set the upper framebuffer cache size after which memory is aggressively freed. The value is in megabytes.
    
-   .. py:method:: list_functions()
+   .. py:method:: get_plugins()
    
-      Returns a string containing all the loaded plugins and internal functions.
+      Returns a dict containing all loaded plugins and their functions.
    
    .. py:method:: register_format(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h)
    
@@ -67,13 +80,6 @@ Classes
    .. py:method:: get_frame(n)
    
       Returns a VideoFrame from position n.
-   
-   .. py:method:: output(fileobj[, y4m = False, prefetch = 0, progress_update = None])
-   
-      Write the whole clip to the specified file handle. It is possible to pipe to stdout by specifying *sys.stdout* as the file.
-      YUV4MPEG2 headers will be appended when *y4m* is true.
-      The current progress can be reported by passing a callback function of the form *func(current_frame, total_frame)* to *progress_update*.
-      The *prefetch* argument is only for debugging purposes.
       
 .. py:class:: VideoFrame
 
@@ -115,6 +121,10 @@ Classes
    
       Returns the stride between lines in a *plane*.
       
+   .. py:method:: set_output(index = 0)
+   
+      Set the clip to be accessible for output. This is the standard way to specify which clip(s) to output and all VapourSynth tools (vsvfw, vsfs, vspipe) use the clip in *index* 0.
+      
 .. py:class:: Format
 
    This class represents all information needed to describe a frame format. It holds the general color type, subsampling, number of planes and so on.
@@ -155,6 +165,15 @@ Classes
    .. py:attribute:: num_planes
    
       The number of planes the format has.
+      
+.. py:class:: Plugin
+
+   Plugin is a class that represents a loaded plugin and its namespace.
+   
+   .. py:method:: get_functions()
+   
+      Returns a dict containing all the functions in the plugin. You can access it by calling *core.std.get_functions()*.
+      Replace *std* with the namespace of the plugin you want to query.
       
 .. py:exception:: Error
 

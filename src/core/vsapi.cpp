@@ -33,8 +33,8 @@ static const VSFormat *VS_CC getFormatPreset(int id, VSCore *core) {
     return core->getFormatPreset((VSPresetFormat)id);
 }
 
-static const VSFormat *VS_CC registerFormat(int colorFamily, int sampleType, int bytesPerSample, int subSamplingW, int subSamplingH, VSCore *core) {
-    return core->registerFormat((VSColorFamily)colorFamily, (VSSampleType)sampleType, bytesPerSample, subSamplingW, subSamplingH);
+static const VSFormat *VS_CC registerFormat(int colorFamily, int sampleType, int bitsPerSample, int subSamplingW, int subSamplingH, VSCore *core) {
+    return core->registerFormat((VSColorFamily)colorFamily, (VSSampleType)sampleType, bitsPerSample, subSamplingW, subSamplingH);
 }
 
 static const VSFrameRef *VS_CC cloneFrameRef(const VSFrameRef *frame) {
@@ -60,8 +60,8 @@ static uint8_t *VS_CC getWritePtr(VSFrameRef *frame, int plane) {
 }
 
 static void VS_CC getFrameAsync(int n, VSNodeRef *clip, VSFrameDoneCallback fdc, void *userData) {
-    PFrameContext g(new FrameContext(n, clip->index, clip, fdc, userData));
-    clip->clip->getFrame(g);
+    PFrameContext c(new FrameContext(n, clip->index, clip, fdc, userData));
+    clip->clip->getFrame(c);
 }
 
 struct GetFrameWaiter {
@@ -73,21 +73,30 @@ struct GetFrameWaiter {
     GetFrameWaiter(char *errorMsg, int bufSize) : errorMsg(errorMsg), bufSize(bufSize) {}
 };
 
-static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, VSNodeRef *, const char *errorMsg) {
+static void VS_CC frameWaiterCallback(void *userData, const VSFrameRef *frame, int n, VSNodeRef *node, const char *errorMsg) {
     GetFrameWaiter *g = (GetFrameWaiter *)userData;
     QMutexLocker l(&g->b);
     g->r = frame;
     memset(g->errorMsg, 0, g->bufSize);
-    if (errorMsg)
-        strncpy(g->errorMsg, errorMsg, g->bufSize - 1);
+    if (errorMsg) {
+        strncpy(g->errorMsg, errorMsg, g->bufSize);
+		g->errorMsg[g->bufSize - 1] = 0;
+	}
     g->a.wakeOne();
 }
 
 static const VSFrameRef *VS_CC getFrame(int n, VSNodeRef *clip, char *errorMsg, int bufSize) {
     GetFrameWaiter g(errorMsg, bufSize);
     QMutexLocker l(&g.b);
-    getFrameAsync(n, clip, &frameWaiterCallback, &g);
+	PFrameContext c(new FrameContext(n, clip->index, clip, &frameWaiterCallback, &g));
+	VSNode *node = clip->clip.data();
+	bool isWorker = node->isWorkerThread();
+	if (isWorker)
+		node->releaseThread();
+    node->getFrame(c);
     g.a.wait(&g.b);
+	if (isWorker)
+		node->reserveThread();
     return g.r;
 }
 
@@ -718,7 +727,7 @@ struct VSAPI_R2 {
     VSCallFunc callFunc;
 
     //property access functions
-    VSNewMap newMap;
+    VSCreateMap createMap;
     VSFreeMap freeMap;
     VSClearMap clearMap;
 
@@ -754,90 +763,11 @@ struct VSAPI_R2 {
     VSGetOutputIndex getOutputIndex;
 };
 
-const VSAPI_R2 vsapiR2 = {
-    &createCore,
-    &freeCore,
-    NULL, // not going to bother because nothing actually used this api function
-
-    &cloneFrameRef,
-    &cloneNodeRef,
-    &cloneFuncRef,
-
-    &freeFrame,
-    &freeNode,
-    &freeFunc,
-
-    &newVideoFrame,
-    &copyFrame,
-    &copyFrameProps,
-    &registerFunction,
-    &getPluginId,
-    &getPluginNs,
-    &getPlugins,
-    &getFunctions,
-    &createFilterR2,
-    &setError,
-    &getError,
-    &setFilterError,
-    &invoke,
-    &getFormatPreset,
-    &registerFormat,
-    &getFrame,
-    &getFrameAsync,
-    &getFrameFilter,
-    &requestFrameFilter,
-    &queryCompletedFrame,
-    &releaseFrameEarly,
-
-    &getStride,
-    &getReadPtr,
-    &getWritePtr,
-
-    &createFunc,
-    &callFunc,
-
-    &newMap,
-    &freeMap,
-    &clearMap,
-
-    &getVideoInfo,
-    &setVideoInfoR2,
-    &getFrameFormat,
-    &getFrameWidth,
-    &getFrameHeight,
-    &getFramePropsRO,
-    &getFramePropsRW,
-
-    &propNumKeys,
-    &propGetKey,
-    &propNumElements,
-    &propGetType,
-    &propGetInt,
-    &propGetFloat,
-    &propGetData,
-    &propGetDataSize,
-    &propGetNode,
-    &propGetFrame,
-    &propGetFunc,
-    &propDeleteKey,
-    &propSetInt,
-    &propSetFloat,
-    &propSetData,
-    &propSetNode,
-    &propSetFrame,
-    &propSetFunc,
-
-    &setMaxCacheSize,
-    &getOutputIndex
-};
-
 ///////////////////////////////
 
 const VSAPI *getVSAPIInternal(int version) {
     if (version == VAPOURSYNTH_API_VERSION) {
         return &vsapi;
-    } else if (version == 2) {
-        return (const VSAPI *)&vsapiR2;
     } else {
         qFatal("Internally requested API version %d", version);
         return NULL;
@@ -852,8 +782,6 @@ const VSAPI *VS_CC getVapourSynthAPI(int version) {
         return NULL;
     } else if (version == VAPOURSYNTH_API_VERSION) {
         return &vsapi;
-    } else if (version == 2) {
-        return (const VSAPI *)&vsapiR2;
     } else {
         return NULL;
     }

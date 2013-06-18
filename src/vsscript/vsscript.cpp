@@ -1,67 +1,83 @@
 #include "VSScript.h"
-#include "vapoursynthpp_api.h"
-#include <map>
-#include <utility>
+#include "vapoursynth_api.h"
 
-typedef std::pair<int, void *> SRec;
-typedef std::map<ScriptExport *, SRec> SMap;
+struct VSScript : public VPYScriptExport {
+};
 
-SMap openScripts;
+int initializationCount = 0;
+int scriptId = 1000;
+PyThreadState *ts = NULL;
 
-VS_API(int) initVSScript(void) {
-    Py_Initialize();
-    return import_vapoursynth();
+VS_API(int) vseval_init(void) {
+	if (initializationCount == 0) {
+		Py_Initialize();
+		int result = import_vapoursynth();
+		if (result)
+			return 0;
+		ts = PyEval_SaveThread();
+	}
+	initializationCount++;
+    return initializationCount;
 }
 
-VS_API(int) freeVSScript(void) {
-    if (!openScripts.empty())
-        return -1;
+VS_API(int) vseval_finalize(void) {
+	initializationCount--;
+    if (initializationCount)
+        return initializationCount;
+	PyEval_RestoreThread(ts);
     Py_Finalize();
     return 0;
 }
 
-VS_API(int) evaluateText(ScriptExport *se, const char *text, const char *filename, int scriptEngine) {
-    if (scriptEngine == sePython) {
-        VPYScriptExport *vpy = new VPYScriptExport();
-        int res = vpy_evaluate_text((char *)text, (char *)filename, vpy);
-        openScripts.insert(std::pair<ScriptExport *, SRec>(se, SRec(scriptEngine, (void *)vpy)));
-        se->vsapi = vpy->vsapi;
-        se->node = vpy->node;
-        se->error = vpy->error;
-        se->num_threads = vpy->num_threads;
-        se->pad_scanlines = vpy->pad_scanlines;
-        se->enable_v210 = vpy->enable_v210;
-        return res;
-    } else {
-        return -1;
+VS_API(int) vseval_evaluateScript(VSScript **handle, const char *script, const char *errorFilename) {
+    if (*handle == NULL) {
+        *handle = new VSScript();
+        (*handle)->pyenvdict = NULL;
+        (*handle)->errstr = NULL;
+		(*handle)->id = scriptId++;
     }
+    return vpy_evaluateScript(*handle, script, errorFilename);
 }
 
-VS_API(int) evaluateFile(ScriptExport *se, const char *filename, int scriptEngine) {
-    if (scriptEngine == seDefault) {
-        std::string fn = filename;
-    }
-
-    if (scriptEngine == sePython) {
-        VPYScriptExport *vpy = new VPYScriptExport();
-        int res = vpy_evaluate_file((char *)filename, vpy);
-        openScripts.insert(std::pair<ScriptExport *, SRec>(se, SRec(scriptEngine, (void *)vpy)));
-        se->vsapi = vpy->vsapi;
-        se->node = vpy->node;
-        se->error = vpy->error;
-        se->num_threads = vpy->num_threads;
-        se->pad_scanlines = vpy->pad_scanlines;
-        se->enable_v210 = vpy->enable_v210;
-        return res;
-    } else {
-        return -1;
-    }
+VS_API(void) vseval_freeScript(VSScript *handle) {
+	if (handle) {
+		vpy_freeScript(handle);
+		delete handle;
+	}
 }
 
-VS_API(int) freeScript(ScriptExport *se) {
-    SMap::iterator i = openScripts.find(se);
-    if (i == openScripts.end())
-        return -1;
-    openScripts.erase(openScripts.find(se));
-    return 0;
+VS_API(const char *) vseval_getError(VSScript *handle) {
+    return vpy_getError(handle);
+}
+
+VS_API(VSNodeRef *) vseval_getOutput(VSScript *handle, int index) {
+	return vpy_getOutput(handle, index);
+}
+
+VS_API(void) vseval_clearOutput(VSScript *handle, int index) {
+	vpy_clearOutput(handle, index);
+}
+
+VS_API(VSCore *) vseval_getCore(void) {
+    return vpy_getCore();
+}
+
+VS_API(const VSAPI *) vseval_getVSApi(void) {
+    return vpy_getVSApi();
+}
+
+VS_API(int) vseval_getVariable(VSScript *handle, const char *name, VSMap *dst) {
+	return vpy_getVariable(handle, name, dst);
+}
+
+VS_API(void) vseval_setVariable(VSScript *handle, const VSMap *vars) {
+	vpy_setVariable(handle, (VSMap *)vars);
+}
+
+VS_API(int) vseval_clearVariable(VSScript *handle, const char *name) {
+	return vpy_clearVariable(handle, name);
+}
+
+VS_API(void) vseval_clearEnvironment(VSScript *handle) {
+    vpy_clearEnvironment(handle);
 }

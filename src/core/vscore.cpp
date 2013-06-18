@@ -257,7 +257,7 @@ VSFunction::VSFunction(const QByteArray &name, const QByteArray &argString, VSPu
         if (empty && !arr)
             qFatal("Only array arguments can have the empty flag set");
 
-        args.append(FilterArgument(argParts[0].toUtf8(), type, arr, empty, opt, link));
+        args.append(FilterArgument(argParts[0].toUtf8(), type, arr, empty, opt));
     }
 }
 
@@ -318,6 +318,17 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
     return p;
 }
 
+void VSNode::reserveThread() { 
+	core->threadPool->reserveThread();
+}
+
+void VSNode::releaseThread() {
+	core->threadPool->releaseThread();
+}
+
+bool VSNode::isWorkerThread() {
+	return core->threadPool->isWorkerThread();
+}
 
 PVideoFrame VSCore::newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc) {
     return PVideoFrame(new VSFrame(f, width, height, propSrc, this));
@@ -515,6 +526,8 @@ VSCore::~VSCore() {
     delete threadPool;
     foreach(VSPlugin * p, plugins)
         delete p;
+    foreach(VSFormat * f, formats)
+        delete f;
 
 #if FEATURE_CUDA
     delete gpuManager;
@@ -732,16 +745,6 @@ VSMap VSPlugin::invoke(const QByteArray &funcName, const VSMap &args) {
                     if (!fa.empty && args[fa.name].count() < 1)
                         throw VSException(funcName + ": argument " + fa.name + " does not accept empty arrays");
 
-                    if (fa.link) {
-                        c = vsapi.propGetType(&args, fa.name + "_prop");
-
-                        if (c != 'u') {
-                            argsCopy.remove(fa.name + "_prop");
-
-                            if (c != 's' || args[fa.name + "_prop"].count() != 1)
-                                throw VSException(funcName + ": argument " + fa.name + "_prop is not a single valued string");
-                        }
-                    }
                 } else if (!fa.opt) {
                     throw VSException(funcName + ": argument " + fa.name + " is required");
                 }

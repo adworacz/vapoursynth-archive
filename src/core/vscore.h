@@ -178,9 +178,8 @@ public:
     bool arr;
     bool empty;
     bool opt;
-    bool link;
-    FilterArgument(const QByteArray &name, FilterArgumentType type, bool arr, bool empty, bool opt, bool link)
-        : name(name), type(type), arr(arr), empty(empty), opt(opt), link(link) {}
+    FilterArgument(const QByteArray &name, FilterArgumentType type, bool arr, bool empty, bool opt)
+        : name(name), type(type), arr(arr), empty(empty), opt(opt) {}
 };
 
 class MemoryUse {
@@ -289,7 +288,6 @@ public:
 class FrameContext {
     friend class VSThreadPool;
     friend class VSThread;
-    friend struct VSNode;
 private:
     int numFrameRequests;
     int n;
@@ -310,7 +308,7 @@ public:
 
     void *frameContext;
     void setError(const QByteArray &errorMsg);
-    bool hasError() {
+    inline bool hasError() {
         return error;
     }
     const QByteArray &getErrorMessage() {
@@ -321,7 +319,6 @@ public:
 };
 
 struct VSNode {
-    friend class VSThreadPool;
     friend class VSThread;
 private:
     void *instanceData;
@@ -361,9 +358,18 @@ public:
         hasVi = true;
     }
 
-    int getNumOutputs() {
+    int getNumOutputs() const {
         return vi.size();
     }
+
+	const QByteArray &getName() const {
+		return name;
+	}
+
+	// to get around encapsulation a bit, more elegant than making everything friends in this case
+	void reserveThread();
+	void releaseThread();
+	bool isWorkerThread();
 };
 
 class VSThreadPool;
@@ -397,21 +403,25 @@ private:
     QHash<NodeOutputKey, PFrameContext> allContexts;
     QAtomicInt ticks;
     QWaitCondition newWork;
-    int activeThreads;
+    QAtomicInt activeThreads;
+	int idleThreads;
+	int maxThreads;
     void wakeThread();
     void notifyCaches(CacheActivation reason);
     void startInternal(const PFrameContext &context);
+	void spawnThread();
 public:
     VSThreadPool(VSCore *core, int threads);
     ~VSThreadPool();
     void returnFrame(const PFrameContext &rCtx, const PVideoFrame &f);
     int	activeThreadCount() const;
     int	threadCount() const;
-    void setThreadCount(int threadCount);
+	void setThreadCount(int threads);
     void start(const PFrameContext &context);
     void waitForDone();
     void releaseThread();
     void reserveThread();
+	bool isWorkerThread();
 };
 
 class VSFunction {

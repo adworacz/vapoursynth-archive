@@ -112,8 +112,6 @@ static int planeHeight(const VSVideoInfo *vi, int plane) {
 typedef struct {
     VSNodeRef *node;
     const VSVideoInfo *vi;
-    const char *xprop;
-    const char *yprop;
     int x;
     int y;
     int width;
@@ -163,7 +161,6 @@ static int cropAbsVerify(int x, int y, int width, int height, int srcwidth, int 
 
 static const VSFrameRef *VS_CC cropAbsGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     CropAbsData *d = (CropAbsData *) * instanceData;
-    char msg[150];
 
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
@@ -173,30 +170,7 @@ static const VSFrameRef *VS_CC cropAbsGetframe(int n, int activationReason, void
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst = vsapi->newVideoFrame(fi, d->width, d->height, src, core);
-        int x = d->x;
-        int y = d->y;
         const VSMap *m = vsapi->getFramePropsRO(src);
-        int err;
-        int64_t temp;
-
-        if (d->xprop) {
-            temp = vsapi->propGetInt(m, "x_prop", 0, &err);
-
-            if (!err)
-                d->x = int64ToIntS(temp);
-        }
-
-        if (d->yprop) {
-            temp = vsapi->propGetInt(m, "y_prop", 0, &err);
-
-            if (!err)
-                d->y = int64ToIntS(temp);
-        }
-
-        if (cropAbsVerify(x, y, d->width, d->height, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fi, msg)) {
-            vsapi->setFilterError(msg, frameCtx);
-            return 0;
-        }
 
         // now that argument validation is over we can spend the next few lines actually cropping
         for (plane = 0; plane < fi->numPlanes; plane++) {
@@ -230,9 +204,7 @@ static void VS_CC cropAbsCreate(const VSMap *in, VSMap *out, void *userData, VSC
     int err;
 
     d.x = int64ToIntS(vsapi->propGetInt(in, "x", 0, &err));
-    d.xprop = vsapi->propGetData(in, "x_prop", 0, &err);
     d.y = int64ToIntS(vsapi->propGetInt(in, "y", 0, &err));
-    d.yprop = vsapi->propGetData(in, "y_prop", 0, &err);
 
     d.height = int64ToIntS(vsapi->propGetInt(in, "height", 0, 0));
     d.width = int64ToIntS(vsapi->propGetInt(in, "width", 0, 0));
@@ -627,6 +599,7 @@ static void VS_CC interleaveFree(void *instanceData, VSCore *core, const VSAPI *
         vsapi->freeNode(d->node[i]);
 
     free(d->node);
+    free(d);
 }
 
 static void VS_CC interleaveCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -1006,6 +979,7 @@ static void VS_CC selectEveryFree(void *instanceData, VSCore *core, const VSAPI 
     SelectEveryData *d = (SelectEveryData *)instanceData;
     free(d->offsets);
     vsapi->freeNode(d->node);
+    free(d);
 }
 
 static void VS_CC selectEveryCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -1255,6 +1229,7 @@ static void VS_CC spliceFree(void *instanceData, VSCore *core, const VSAPI *vsap
 
     free(d->node);
     free(d->numframes);
+    free(d);
 }
 
 static void VS_CC spliceCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -1536,6 +1511,7 @@ static void VS_CC stackFree(void *instanceData, VSCore *core, const VSAPI *vsapi
         vsapi->freeNode(d->node[i]);
 
     free(d->node);
+    free(d);
 }
 
 static void VS_CC stackCreate(const VSMap *in, VSMap *out, void *userData, VSCore *core, const VSAPI *vsapi) {
@@ -1639,6 +1615,9 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     int i;
     int compat = 0;
     memset(&d.vi, 0, sizeof(d.vi));
+
+	for (i = 0; i < 3; i++)
+		color.i[i] = 0;
 
     node = vsapi->propGetNode(in, "clip", 0, &err);
 
@@ -2054,13 +2033,26 @@ static void VS_CC lutCreate(const VSMap *in, VSMap *out, void *userData, VSCore 
 typedef struct {
     VSNodeRef *node[2];
     const VSVideoInfo *vi[2];
+    VSVideoInfo *vi_out;
     void *lut;
     int process[3];
 } Lut2Data;
 
+#define LUT2_PROCESS(X_CAST, Y_CAST, DST_CAST) \
+    do { \
+        for (hl = 0; hl < h; hl++) { \
+            for (x = 0; x < w; x++) { \
+                ((DST_CAST *)dstp)[x] =  lut[(((Y_CAST *)srcpy)[x] << shift) + ((X_CAST *)srcpx)[x]]; \
+            } \
+            dstp += dst_stride; \
+            srcpx += srcx_stride; \
+            srcpy += srcy_stride; \
+        } \
+    } while(0)
+
 static void VS_CC lut2Init(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
     Lut2Data *d = (Lut2Data *) * instanceData;
-    vsapi->setVideoInfo(d->vi[0], 1, node);
+    vsapi->setVideoInfo(d->vi_out, 1, node);
     vsapi->clearMap(in);
 }
 
@@ -2074,7 +2066,7 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
         int plane;
         const VSFrameRef *srcx = vsapi->getFrameFilter(n, d->node[0], frameCtx);
         const VSFrameRef *srcy = vsapi->getFrameFilter(n, d->node[1], frameCtx);
-        const VSFormat *fi = vsapi->getFrameFormat(srcx);
+        const VSFormat *fi = d->vi_out->format;
         const int pl[] = {0, 1, 2};
         const VSFrameRef *fr[] = {d->process[0] ? 0 : srcx, d->process[1] ? 0 : srcx, d->process[2] ? 0 : srcx};
         VSFrameRef *dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(srcx, 0), vsapi->getFrameHeight(srcx, 0), fr, pl, srcx, core);
@@ -2082,13 +2074,14 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
         for (plane = 0; plane < fi->numPlanes; plane++) {
             const uint8_t *srcpx = vsapi->getReadPtr(srcx, plane);
             const uint8_t *srcpy = vsapi->getReadPtr(srcy, plane);
-            int src_stride = vsapi->getStride(srcx, plane);
+            int srcx_stride = vsapi->getStride(srcx, plane);
+            int srcy_stride = vsapi->getStride(srcy, plane);
             uint8_t *dstp = vsapi->getWritePtr(dst, plane);
             int dst_stride = vsapi->getStride(dst, plane);
             int h = vsapi->getFrameHeight(srcx, plane);
 
             if (d->process[plane]) {
-                int shift = fi->bitsPerSample;
+                int shift = d->vi[0]->format->bitsPerSample;
                 int hl;
                 int w = vsapi->getFrameWidth(srcx, plane);
                 int x;
@@ -2096,24 +2089,26 @@ static const VSFrameRef *VS_CC lut2Getframe(int n, int activationReason, void **
                 if (fi->bytesPerSample == 1) {
                     const uint8_t *lut = (uint8_t *)d->lut;
 
-                    for (hl = 0; hl < h; hl++) {
-                        for (x = 0; x < w; x++)
-                            dstp[x] =  lut[(srcpy[x] << shift) + srcpx[x]];
-
-                        dstp += dst_stride;
-                        srcpx += src_stride;
-                        srcpy += src_stride;
+                    if (d->vi[0]->format->bitsPerSample == 8 && d->vi[1]->format->bitsPerSample == 8) {
+                        LUT2_PROCESS(uint8_t, uint8_t, uint8_t);
+                    } else if (d->vi[0]->format->bitsPerSample == 8 && d->vi[1]->format->bitsPerSample > 8) {
+                        LUT2_PROCESS(uint8_t, uint16_t, uint8_t);
+                    } else if (d->vi[0]->format->bitsPerSample > 8 && d->vi[1]->format->bitsPerSample == 8) {
+                        LUT2_PROCESS(uint16_t, uint8_t, uint8_t);
+                    } else {
+                        LUT2_PROCESS(uint16_t, uint16_t, uint8_t);
                     }
                 } else {
                     const uint16_t *lut = (uint16_t *)d->lut;
 
-                    for (hl = 0; hl < h; hl++) {
-                        for (x = 0; x < w; x++)
-                            ((uint16_t *)dstp)[x] =  lut[(srcpy[x] << shift) + srcpx[x]];
-
-                        dstp += dst_stride;
-                        srcpx += src_stride;
-                        srcpy += src_stride;
+                    if (d->vi[0]->format->bitsPerSample == 8 && d->vi[1]->format->bitsPerSample == 8) {
+                        LUT2_PROCESS(uint8_t, uint8_t, uint16_t);
+                    } else if (d->vi[0]->format->bitsPerSample == 8 && d->vi[1]->format->bitsPerSample > 8) {
+                        LUT2_PROCESS(uint8_t, uint16_t, uint16_t);
+                    } else if (d->vi[0]->format->bitsPerSample > 8 && d->vi[1]->format->bitsPerSample == 8) {
+                        LUT2_PROCESS(uint16_t, uint8_t, uint16_t);
+                    } else {
+                        LUT2_PROCESS(uint16_t, uint16_t, uint16_t);
                     }
                 }
             }
@@ -2140,6 +2135,8 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
     Lut2Data *data;
     int i;
     int n, m, o;
+	int err;
+	int bits;
 
     for (i = 0; i < 3; i++)
         d.process[i] = 0;
@@ -2192,9 +2189,25 @@ static void VS_CC lut2Create(const VSMap *in, VSMap *out, void *userData, VSCore
         RETERROR("Lut2: bad lut length");
     }
 
-    d.lut = malloc(d.vi[0]->format->bytesPerSample * n);
+    bits = int64ToIntS(vsapi->propGetInt(in, "bits", 0, &err));
+    if (bits == 0) {
+        bits = d.vi[0]->format->bitsPerSample;
+    } else if (bits < 8 || bits > 16) {
+        vsapi->freeNode(d.node[0]);
+        vsapi->freeNode(d.node[1]);
+        RETERROR("Lut2: Output format must be between 8 and 16 bits.");
+    }
 
-    if (d.vi[0]->format->bytesPerSample == 1) {
+    d.vi_out = (VSVideoInfo *)malloc(sizeof(VSVideoInfo));
+    *d.vi_out = *d.vi[0];
+    d.vi_out->format = vsapi->registerFormat(d.vi[0]->format->colorFamily, d.vi[0]->format->sampleType, bits, d.vi[0]->format->subSamplingW, d.vi[0]->format->subSamplingH, core);
+
+    if (bits == 8)
+        d.lut = malloc(sizeof(uint8_t) * n);
+    else
+        d.lut = malloc(sizeof(uint16_t) * n);
+
+    if (bits == 8) {
         uint8_t *lut = d.lut;
 
         for (i = 0; i < n; i++) {
@@ -2359,8 +2372,8 @@ static void VS_CC selectClipCreate(const VSMap *in, VSMap *out, void *userData, 
     for (i = 0; i < d.numsrc; i++)
         d.src[i] = vsapi->propGetNode(in, "src", i, 0);
 
-    d.in = vsapi->newMap();
-    d.out = vsapi->newMap();
+    d.in = vsapi->createMap();
+    d.out = vsapi->createMap();
 
     data = malloc(sizeof(d));
     *data = d;
@@ -2450,8 +2463,8 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
 
     d.vi = vsapi->getVideoInfo(d.node[0]);
     d.func = vsapi->propGetFunc(in, "selector", 0, 0);
-    d.in = vsapi->newMap();
-    d.out = vsapi->newMap();
+    d.in = vsapi->createMap();
+    d.out = vsapi->createMap();
 
     data = malloc(sizeof(d));
     *data = d;
@@ -3480,7 +3493,7 @@ static void VS_CC maskedMergeCreate(const VSMap *in, VSMap *out, void *userData,
 
     // do we need to resample the first mask plane and use it for all the planes?
     if ((d.first_plane && d.vi->format->numPlanes > 1) && (d.vi->format->subSamplingH > 0 || d.vi->format->subSamplingW > 0) && (d.process[1] || d.process[2])) {
-        min = vsapi->newMap();
+        min = vsapi->createMap();
         vsapi->propSetNode(min, "clip", d.mask, paAppend);
         vsapi->propSetInt(min, "width", d.vi->width >> d.vi->format->subSamplingW, paAppend);
         vsapi->propSetInt(min, "height", d.vi->height >> d.vi->format->subSamplingH, paAppend);
@@ -3587,7 +3600,7 @@ static void VS_CC transferFrameCreate(const VSMap *in, VSMap *out, void *userDat
 
 void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin) {
     //configFunc("com.vapoursynth.std", "std", "VapourSynth Core Functions", VAPOURSYNTH_API_VERSION, 1, plugin);
-    registerFunc("CropAbs", "clip:clip;width:int;height:int;x:int:opt:link;y:int:opt:link;", cropAbsCreate, 0, plugin);
+    registerFunc("CropAbs", "clip:clip;width:int;height:int;x:int:opt;y:int:opt;", cropAbsCreate, 0, plugin);
     registerFunc("CropRel", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;", cropRelCreate, 0, plugin);
     registerFunc("AddBorders", "clip:clip;left:int:opt;right:int:opt;top:int:opt;bottom:int:opt;color:float[]:opt;", addBordersCreate, 0, plugin);
     registerFunc("Trim", "clip:clip;first:int:opt;last:int:opt;length:int:opt;", trimCreate, 0, plugin);;
@@ -3607,7 +3620,7 @@ void VS_CC stdlibInitialize(VSConfigPlugin configFunc, VSRegisterFunction regist
     registerFunc("BlankClip", "clip:clip:opt;width:int:opt;height:int:opt;format:int:opt;length:int:opt;fpsnum:int:opt;fpsden:int:opt;color:float[]:opt;gpu:int:opt;", blankClipCreate, 0, plugin);
     registerFunc("AssumeFPS", "clip:clip;src:clip:opt;fpsnum:int:opt;fpsden:int:opt;", assumeFPSCreate, 0, plugin);
     registerFunc("Lut", "clip:clip;lut:int[];planes:int[];", lutCreate, 0, plugin);
-    registerFunc("Lut2", "clips:clip[];lut:int[];planes:int[];", lut2Create, 0, plugin);
+    registerFunc("Lut2", "clips:clip[];lut:int[];planes:int[];bits:int:opt;", lut2Create, 0, plugin);
     registerFunc("SelectClip", "clips:clip[];src:clip[];selector:func;", selectClipCreate, 0, plugin);
     registerFunc("ModifyFrame", "clips:clip[];selector:func;", modifyFrameCreate, 0, plugin);
     registerFunc("Transpose", "clip:clip;", transposeCreate, 0, plugin);

@@ -89,11 +89,9 @@ bool VSCache::insert(const int akey, const PVideoFrame &aobject) {
     Q_ASSERT(akey >= 0);
     remove(akey);
     trim(maxSize - 1, maxHistorySize);
-    Node sn(aobject);
-    QHash<int, Node>::iterator i = hash.insert(akey, sn);
+    QHash<int, Node>::iterator i = hash.insert(akey, Node(akey, aobject));
     currentSize++;
     Node *n = &i.value();
-    n->key = i.key();
 
     if (first)
         first->prevNode = n;
@@ -103,14 +101,15 @@ bool VSCache::insert(const int akey, const PVideoFrame &aobject) {
 
     if (!last)
         last = first;
+	
+	trim(maxSize, maxHistorySize);
 
-    trim(maxSize, maxHistorySize);
     return true;
 }
 
 
 void VSCache::trim(int max, int maxHistory) {
-    // first adjust the number of cached frames
+    // first adjust the number of cached frames and extra history length
     while (currentSize > max) {
         if (!weakpoint)
             weakpoint = last;
@@ -125,12 +124,8 @@ void VSCache::trim(int max, int maxHistory) {
     }
 
     // remove history until the tail is small enough
-    Node *n = last;
-
-    while (n && historySize > maxHistory) {
-        Node *u = n;
-        n = n->prevNode;
-        unlink(*u);
+    while (last && historySize > maxHistory) {
+        unlink(*last);
     }
 }
 
@@ -191,9 +186,13 @@ static const VSFrameRef *VS_CC cacheGetframe(int n, int activationReason, void *
                 case VSCache::caGrow:
                     return NULL;
                 case VSCache::caShrink:
+					if (c->cache.getMaxFrames() <= 2)
+						c->cache.clear();
                     c->cache.setMaxFrames(qMax(c->cache.getMaxFrames() - 2, 1));
                     return NULL;
                 case VSCache::caNoChange:
+					if (c->cache.getMaxFrames() <= 1)
+						c->cache.clear();
                     c->cache.setMaxFrames(qMax(c->cache.getMaxFrames() - 1, 1));
                     return NULL;
                 }
