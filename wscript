@@ -384,7 +384,6 @@ def build(bld):
 
         bld(features = 'c cxxshlib',
             includes = 'include',
-            use = ['CUDA', 'CUDART'], # REMOVE THIS LATER
             source = os.path.join('sdk', 'invert_example.c'),
             target = 'example_invert',
             install_path = None)
