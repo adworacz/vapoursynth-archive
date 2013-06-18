@@ -59,9 +59,9 @@ enum PlaneOp {
 typedef struct {
     VSNodeRef *node[3];
     VSVideoInfo vi;
+    ExprOp *gpu_ops[3];
     std::vector<ExprOp> ops[3];
     int plane[3];
-    int opsOffset[3];
 #ifdef VS_X86
     void *stack;
 #else
@@ -72,20 +72,13 @@ typedef struct {
 //Since we don't support the allocation of variable size arrays in
 //each thread's local memory, we will just have to work with a large
 //buffer unfortunately. This will really effect performance unfortunately.
-#define MAX_EXPR_OPS 64
 #define MAX_STACK_SIZE 10
 
-#ifndef VSFILTER_EXPR_MAX_EXPRESSIONS
-#define VSFILTER_EXPR_MAX_EXPRESSIONS 24
-#endif
-
-__constant__ ExprOp d_vops[VSFILTER_EXPR_MAX_EXPRESSIONS][MAX_EXPR_OPS];
-
 template <typename T>
-__device__ float performOp(float *stack, uint32_t *input, const int index, const int opsOffset);
+__device__ float performOp(float * __restrict__ stack, uint32_t * __restrict__ input, const int index, const ExprOp * __restrict__ d_vops);
 
-static __global__ void exprKernel(uint8_t *dstp, int stride, const uint8_t * __restrict__ srcp0, const uint8_t * __restrict__ srcp1, const uint8_t * __restrict__ srcp2,
-                                const int width, const int height, const int opsOffset) {
+static __global__ void exprKernel(uint8_t * __restrict__ dstp, int stride, const uint8_t * __restrict__ srcp0, const uint8_t * __restrict__ srcp1, const uint8_t * __restrict__ srcp2,
+                                const int width, const int height, const ExprOp * __restrict__ d_vops) {
     const int column = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
@@ -106,14 +99,14 @@ static __global__ void exprKernel(uint8_t *dstp, int stride, const uint8_t * __r
         input[2] = ((uint32_t *)srcp2)[(stride >> 2) * row + column];
 
     for (int i = 0; i < 4; i++) {
-        ((uint8_t *)&output)[i] = performOp<uint8_t>(stack, input, i, opsOffset);
+        ((uint8_t *)&output)[i] = performOp<uint8_t>(stack, input, i, d_vops);
     }
 
     ((uint32_t *)dstp)[(stride >> 2) * row + column] = output;
 }
 
 template <typename T>
-__device__ float performOp(float *stack, uint32_t *input, const int index, const int opsOffset) {
+__device__ float performOp(float * __restrict__ stack, uint32_t * __restrict__ input, const int index, const ExprOp * __restrict__ d_vops) {
     float stacktop = 0;
     float tmp;
 
@@ -121,17 +114,17 @@ __device__ float performOp(float *stack, uint32_t *input, const int index, const
     int i = -1;
     while (true) {
         i++;
-        switch (d_vops[opsOffset][i].op) {
+        switch (d_vops[i].op) {
         case opLoadSrc8:
         case opLoadSrc16:
         case opLoadSrcF:
             stack[si] = stacktop;
-            stacktop = ((T *)&input[d_vops[opsOffset][i].e.ival])[index];
+            stacktop = ((T *)&input[d_vops[i].e.ival])[index];
             ++si;
             break;
         case opLoadConst:
             stack[si] = stacktop;
-            stacktop = d_vops[opsOffset][i].e.fval;
+            stacktop = d_vops[i].e.fval;
             ++si;
             break;
         case opDup:
@@ -232,21 +225,16 @@ __device__ float performOp(float *stack, uint32_t *input, const int index, const
     }
 }
 
-void VS_CC copyExprOps(const ExprOp *vops, int numOps, int *opsOffset) {
-    static int offset = 0;
+ExprOp * VS_CC copyExprOps(const ExprOp *vops, int numOps) {
+    ExprOp *gpu_ops;
+    CHECKCUDA(cudaMalloc(&gpu_ops, numOps * sizeof(ExprOp)));
+    CHECKCUDA(cudaMemcpy(gpu_ops, vops, numOps * sizeof(ExprOp), cudaMemcpyHostToDevice));
 
-    //Validation
-    if (numOps > MAX_EXPR_OPS) {
-        throw std::runtime_error("Expr: The number of desired operations is greater than the supported threshold of the GPU version of Expr. Tell the author to increase the threshold.");
-    } else if (numOps == 0) {
-        *opsOffset = 0;
-        return;
-    } else if (offset >= VSFILTER_EXPR_MAX_EXPRESSIONS) {
-        throw std::runtime_error("Expr: The number of Expr expressions is greater than what this build supports. Increase VSFILTER_EXPR_MAX_EXPRESSIONS and try again.");
-    }
+    return gpu_ops;
+}
 
-    CHECKCUDA(cudaMemcpyToSymbol(d_vops, vops, numOps * sizeof(ExprOp), offset * MAX_EXPR_OPS * sizeof(ExprOp)));
-    *opsOffset = offset++;
+void VS_CC freeExprOps(ExprOp *gpu_ops) {
+    CHECKCUDA(cudaFree(gpu_ops));
 }
 
 int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
@@ -276,7 +264,7 @@ int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExpr
             const VSCUDAStream *stream = vsapi->getStream(dst, plane);
 
             dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
-            exprKernel<<<grid, threads, 0, stream->stream>>>(dstp, dst_stride, srcp[0], srcp[1], srcp[2], width, height, d->opsOffset[plane]);
+            exprKernel<<<grid, threads, 0, stream->stream>>>(dstp, dst_stride, srcp[0], srcp[1], srcp[2], width, height, d->gpu_ops[plane]);
         }
     }
 
