@@ -360,6 +360,7 @@ void VSThreadPool::waitForDone() {
 VSThreadPool::~VSThreadPool() {
 	QMutexLocker m(&lock);
 
+	// fixme, hangs on free
     while (allThreads.count()) {
         VSThread *t = *allThreads.begin();
         t->stopThread();
