@@ -39,7 +39,7 @@ typedef struct {
 } AddBordersData;
 
 
-VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const AddBordersData *d,
+VS_EXTERN_C void VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const AddBordersData *d,
                                             VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
 
     for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
@@ -107,8 +107,6 @@ VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *d
         //     break;
         }
     }
-
-    return 1;
 }
 
 
@@ -125,7 +123,7 @@ union color{
     float f[3];
 };
 
-VS_EXTERN_C int VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d, VSCore *core, const VSAPI *vsapi) {
+VS_EXTERN_C void VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d, VSCore *core, const VSAPI *vsapi) {
     for (int plane = 0; plane < d->vi.format->numPlanes; plane++) {
         uint8_t *dst = vsapi->getWritePtr(d->f, plane);
         int stride = vsapi->getStride(d->f, plane);
@@ -144,8 +142,6 @@ VS_EXTERN_C int VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d, 
         //     break;
         }
     }
-
-    return 1;
 }
 
 
@@ -182,7 +178,7 @@ static __global__ void lutKernel8(const uint8_t * __restrict__ srcp, uint8_t * _
     ((uint32_t *)dstp)[stride * row + column] = dst_data;
 }
 
-VS_EXTERN_C int VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const LutData *d,
+VS_EXTERN_C void VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const LutData *d,
                                     VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     int blockSize = VSCUDAGetBasicBlocksize();
     dim3 threads(blockSize, blockSize);
@@ -221,8 +217,6 @@ VS_EXTERN_C int VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, con
     }
 
     CHECKCUDA(cudaFree(d_lut));
-
-    return 1;
 }
 
 //////////////////////////////////////////
@@ -276,7 +270,7 @@ static __global__ void alignedTransposeKernel(const uint8_t * __restrict__ src, 
     }
 }
 
-VS_EXTERN_C int VS_CC transposeProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const TransposeData *d,
+VS_EXTERN_C void VS_CC transposeProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const TransposeData *d,
                                            VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     int blockSize = VSCUDAGetBasicBlocksize();
     dim3 threads(blockSize, blockSize);
@@ -313,10 +307,7 @@ VS_EXTERN_C int VS_CC transposeProcessCUDA(const VSFrameRef *src, VSFrameRef *ds
             //             ((uint32_t *)dstp)[dst_stride * x + y] = ((const uint32_t *)srcp)[src_stride * y + x];
             //     break;
         }
-
     }
-
-    return 1;
 }
 
 ///////////////////////
@@ -354,7 +345,7 @@ static __global__ void mergeKernel(const uint8_t * __restrict__ srcp1, const uin
     ((uint32_t *)dstp)[stride * row + column] = dst_data;
 }
 
-VS_EXTERN_C int VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const MergeData *d, const int MergeShift, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+VS_EXTERN_C void VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const MergeData *d, const int MergeShift, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     int blockSize = VSCUDAGetBasicBlocksize();
     dim3 threads(blockSize, blockSize);
 
@@ -399,8 +390,6 @@ VS_EXTERN_C int VS_CC mergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef 
             }
         }
     }
-
-    return 1;
 }
 
 
@@ -442,7 +431,7 @@ static __global__ void maskedMergeKernel(const uint8_t * __restrict__ srcp1, con
     ((uint32_t *)dstp)[stride * row + column] = dst_data;
 }
 
-VS_EXTERN_C int VS_CC maskedMergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const VSFrameRef *mask, const VSFrameRef *mask23, const MaskedMergeData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
+VS_EXTERN_C void VS_CC maskedMergeProcessCUDA(const VSFrameRef *src1, const VSFrameRef *src2, VSFrameRef *dst, const VSFrameRef *mask, const VSFrameRef *mask23, const MaskedMergeData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     int blockSize = VSCUDAGetBasicBlocksize();
     dim3 threads(blockSize, blockSize);
 
@@ -489,6 +478,4 @@ VS_EXTERN_C int VS_CC maskedMergeProcessCUDA(const VSFrameRef *src1, const VSFra
             }
         }
     }
-
-    return 1;
 }
