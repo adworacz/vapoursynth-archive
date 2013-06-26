@@ -124,7 +124,7 @@ union color{
 };
 
 template<typename T>
-static __global__ void blankClipKernel(const uint8_t dst, int stride, int width, int height, int bytesPerSample, uint32_t color) {
+static __global__ void blankClipKernel(uint8_t dst, int stride, int width, int height, int bytesPerSample, uint32_t color) {
     const int column = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
@@ -150,6 +150,8 @@ VS_EXTERN_C void VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d,
         uint8_t *dst = vsapi->getWritePtr(d->f, plane);
         int stride = vsapi->getStride(d->f, plane);
         uint32_t c = ((union color *)color)->i[plane];
+        int width = vsapi->getFrameWidth(d->f, plane);
+        int height = vsapi->getFrameHeight(d->f, plane);
         const VSCUDAStream *stream = vsapi->getStream(d->f, plane);
         switch (d->vi.format->bytesPerSample) {
         case 1:
@@ -157,9 +159,8 @@ VS_EXTERN_C void VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d,
                 vsapi->getFrameWidth(d->f, plane) * d->vi.format->bytesPerSample, vsapi->getFrameHeight(d->f, plane), stream->stream));
             break;
         case 2:
-            dim3 grid(ceil((float)w / (threads.x * sizeof(uint32_t))), ceil((float)h / threads.y));
-            blankClipKernel<uint16_t><<<grid, threads, 0, stream->stream>>>(dst, stride, vsapi->getFrameWidth(d->f, plane),
-                                                                vsapi->getFrameHeight(d->f, plane), d->vi.format->bytesPerSample, c);
+            dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
+            blankClipKernel<uint16_t><<<grid, threads, 0, stream->stream>>>(dst, stride, width, height, d->vi.format->bytesPerSample, c);
             break;
         // case 4:
         //     vs_memset32(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 4);
