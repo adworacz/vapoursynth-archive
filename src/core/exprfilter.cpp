@@ -107,7 +107,7 @@ typedef struct {
 extern "C" void vs_evaluate_expr_sse2(const void *exprs, const uint8_t **rwptrs, const intptr_t *ptroffsets, int numiterations, void *stack);
 
 #if FEATURE_CUDA
-extern int VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
+extern void VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
                                        VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 extern ExprOp * VS_CC copyExprOps(const ExprOp *vops, int numOps);
 extern void VS_CC freeExprOps(ExprOp *gpu_ops);
@@ -144,14 +144,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation2(fi, width, height, srcf, planes, src[0], core, flGPU);
-            if (!exprProcessCUDA(src, dst, d, frameCtx, core, vsapi)) {
-                for (int i = 0; i < 3; i++) {
-                    if (d->node[i])
-                        vsapi->freeFrame(src[i]);
-                }
-                vsapi->freeFrame(dst);
-                return 0;
-            }
+            exprProcessCUDA(src, dst, d, frameCtx, core, vsapi)
 #endif
         } else {
             dst = vsapi->newVideoFrame2(fi, width, height, srcf, planes, src[0], core);
