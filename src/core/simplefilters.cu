@@ -39,21 +39,20 @@ typedef struct {
 } AddBordersData;
 
 
-VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi,
-                                     const AddBordersData *d, VSFrameContext *frameCtx, VSCore *core,
-                                     const VSAPI *vsapi) {
+VS_EXTERN_C int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const AddBordersData *d,
+                                            VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
 
-    for (int plane = 0; plane < fi->numPlanes; plane++) {
-        int rowsize = vsapi->getFrameWidth(src, plane) * fi->bytesPerSample;
+    for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
+        int rowsize = vsapi->getFrameWidth(src, plane) * d->vi->format->bytesPerSample;
         int srcstride = vsapi->getStride(src, plane);
         int dststride = vsapi->getStride(dst, plane);
         int srcheight = vsapi->getFrameHeight(src, plane);
         const uint8_t *srcdata = vsapi->getReadPtr(src, plane);
         uint8_t *dstdata = vsapi->getWritePtr(dst, plane);
-        int padt = d->top >> (plane ? fi->subSamplingH : 0);
-        int padb = d->bottom >> (plane ? fi->subSamplingH : 0);
-        int padl = (d->left >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
-        int padr = (d->right >> (plane ? fi->subSamplingW : 0)) * fi->bytesPerSample;
+        int padt = d->top >> (plane ? d->vi->format->subSamplingH : 0);
+        int padb = d->bottom >> (plane ? d->vi->format->subSamplingH : 0);
+        int padl = (d->left >> (plane ? d->vi->format->subSamplingW : 0)) * d->vi->format->bytesPerSample;
+        int padr = (d->right >> (plane ? d->vi->format->subSamplingW : 0)) * d->vi->format->bytesPerSample;
         int color = d->color.i[plane];
         const VSCUDAStream *stream = vsapi->getStream(dst, plane);
 
@@ -183,18 +182,17 @@ static __global__ void lutKernel8(const uint8_t * __restrict__ srcp, uint8_t * _
     ((uint32_t *)dstp)[stride * row + column] = dst_data;
 }
 
-VS_EXTERN_C int VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi,
-                                     const LutData *d, VSFrameContext *frameCtx, VSCore *core,
-                                     const VSAPI *vsapi) {
+VS_EXTERN_C int VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const LutData *d,
+                                    VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
     int blockSize = VSCUDAGetBasicBlocksize();
     dim3 threads(blockSize, blockSize);
 
     uint8_t *d_lut;
-    int numElements = (1 << fi->bitsPerSample);
+    int numElements = (1 << d->vi->format->bitsPerSample);
     CHECKCUDA(cudaMalloc(&d_lut, numElements * sizeof(uint8_t)));
     CHECKCUDA(cudaMemcpy(d_lut, d->lut, numElements, cudaMemcpyHostToDevice));
 
-    for (int plane = 0; plane < fi->numPlanes; plane++) {
+    for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
         const uint8_t *srcp = vsapi->getReadPtr(src, plane);
         uint8_t *dstp = vsapi->getWritePtr(dst, plane);
         int dst_stride = vsapi->getStride(dst, plane);
@@ -204,7 +202,7 @@ VS_EXTERN_C int VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, con
             int w = vsapi->getFrameWidth(src, plane);
             const VSCUDAStream *stream = vsapi->getStream(dst, plane);
 
-            if (fi->bytesPerSample == 1) {
+            if (d->vi->format->bytesPerSample == 1) {
                 dim3 grid(ceil((float)w / (threads.x * sizeof(uint32_t))), ceil((float)h / threads.y));
 
                 lutKernel8<<<grid, threads, 0, stream->stream>>>(srcp, dstp, dst_stride, w, h, d_lut);

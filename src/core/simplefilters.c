@@ -312,9 +312,8 @@ static int addBordersVerify(int left, int right, int top, int bottom, const VSFo
 }
 
 #if FEATURE_CUDA
-extern int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi,
-                                       const AddBordersData *d, VSFrameContext *frameCtx, VSCore *core,
-                                       const VSAPI *vsapi);
+extern int VS_CC addBordersProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const AddBordersData *d,
+                                    VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 #endif
 
 static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi) {
@@ -1855,7 +1854,7 @@ typedef struct {
 } LutData;
 
 #if FEATURE_CUDA
-extern int VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const VSFormat *fi, const LutData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
+extern int VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, const LutData *d, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 #endif
 
 static void VS_CC lutInit(VSMap *in, VSMap *out, void **instanceData, VSNode *node, VSCore *core, const VSAPI *vsapi) {
