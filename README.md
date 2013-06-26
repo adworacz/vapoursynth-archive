@@ -13,7 +13,6 @@ TODO (for my use only):
    * Investigate usage of shared memory in memory bound kernels in order to perform optimal coalescing. Items are currently coalesced,
      but there may be a possibility to increase DRAM utilization, either through the reduction of partition camping or larger global->shared
      memory acceses, a la CUDA SDK's Transpose kernel.
-   * Remove the unnecessary VSFormat parameter passing in simplefilters.cu, as the VSVideoInfo class already has the format.
    * Change kernel wrappers to void from int for fully streamed frame data.
    * Add support for multiple GPUs.
 
