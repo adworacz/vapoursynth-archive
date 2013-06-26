@@ -37,6 +37,14 @@ class CoreTestSequence(unittest.TestCase):
 
         self.checkDifference(cpu, gpu)
 
+    def testBlankClip16bit(self):
+        cpu = self.core.std.BlankClip(format=vs.YUV420P16, color=[300, 700, 900])
+        gpu = self.core.std.BlankClip(format=vs.YUV420P16, color=[300, 700, 900], gpu=1)
+
+        gpu = self.core.std.TransferFrame(gpu, 0)
+
+        self.checkDifference(cpu, gpu)
+
     def testLutDifference(self):
         clip = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
 

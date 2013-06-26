@@ -129,18 +129,10 @@ VS_EXTERN_C void VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d,
         int stride = vsapi->getStride(d->f, plane);
         uint32_t c = ((union color *)color)->i[plane];
         const VSCUDAStream *stream = vsapi->getStream(d->f, plane);
-        switch (d->vi.format->bytesPerSample) {
-        case 1:
-            CHECKCUDA(cudaMemset2DAsync(dst, stride, c,
-                vsapi->getFrameWidth(d->f, plane) * d->vi.format->bytesPerSample, vsapi->getFrameHeight(d->f, plane), stream->stream));
-            break;
-        // case 2:
-        //     vs_memset16(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 2);
-        //     break;
-        // case 4:
-        //     vs_memset32(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 4);
-        //     break;
-        }
+
+        CHECKCUDA(cudaMemset2DAsync(dst, stride, c,
+            vsapi->getFrameWidth(d->f, plane) * d->vi.format->bytesPerSample,
+            vsapi->getFrameHeight(d->f, plane), stream->stream));
     }
 }
 
