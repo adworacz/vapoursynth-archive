@@ -336,7 +336,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation(fi, vsapi->getFrameWidth(src, 0) + d->left + d->right, vsapi->getFrameHeight(src, 0) + d->top + d->bottom, src, core, flGPU);
-            if (!addBordersProcessCUDA(src, dst, fi, d, frameCtx, core, vsapi)) {
+            if (!addBordersProcessCUDA(src, dst, d, frameCtx, core, vsapi)) {
                 vsapi->freeFrame(src);
                 vsapi->freeFrame(dst);
                 return 0;
@@ -1882,7 +1882,7 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core, fLocation);
 
-            if (!lutProcessCUDA(src, dst, fi, d, frameCtx, core, vsapi)) {
+            if (!lutProcessCUDA(src, dst, d, frameCtx, core, vsapi)) {
                 vsapi->freeFrame(src);
                 vsapi->freeFrame(dst);
                 return 0;
