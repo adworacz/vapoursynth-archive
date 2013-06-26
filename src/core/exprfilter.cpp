@@ -144,7 +144,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation2(fi, width, height, srcf, planes, src[0], core, flGPU);
-            exprProcessCUDA(src, dst, d, frameCtx, core, vsapi)
+            exprProcessCUDA(src, dst, d, frameCtx, core, vsapi);
 #endif
         } else {
             dst = vsapi->newVideoFrame2(fi, width, height, srcf, planes, src[0], core);

@@ -336,7 +336,7 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation(fi, vsapi->getFrameWidth(src, 0) + d->left + d->right, vsapi->getFrameHeight(src, 0) + d->top + d->bottom, src, core, flGPU);
-            addBordersProcessCUDA(src, dst, d, frameCtx, core, vsapi)
+            addBordersProcessCUDA(src, dst, d, frameCtx, core, vsapi);
 #endif
         } else {
             int plane;
@@ -1730,9 +1730,7 @@ static void VS_CC blankClipCreate(const VSMap *in, VSMap *out, void *userData, V
     if (gpu) {
 #if FEATURE_CUDA
         d.f = vsapi->newVideoFrameAtLocation(d.vi.format, d.vi.width, d.vi.height, 0, core, flGPU);
-
-        if (!blankClipProcessCUDA(&color, &d, core, vsapi))
-            RETERROR("Unable to create BlankClip on the GPU");
+        blankClipProcessCUDA(&color, &d, core, vsapi);
 #endif
     } else {
         d.f = vsapi->newVideoFrame(d.vi.format, d.vi.width, d.vi.height, 0, core);
@@ -1877,7 +1875,7 @@ static const VSFrameRef *VS_CC lutGetframe(int n, int activationReason, void **i
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core, fLocation);
-            lutProcessCUDA(src, dst, d, frameCtx, core, vsapi)
+            lutProcessCUDA(src, dst, d, frameCtx, core, vsapi);
 #endif
         } else {
             dst = vsapi->newVideoFrame2(fi, vsapi->getFrameWidth(src, 0), vsapi->getFrameHeight(src, 0), fr, pl, src, core);
@@ -2507,7 +2505,7 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation(d->vi.format, d->vi.width, d->vi.height, src, core, fLocation);
-            transposeProcessCUDA(src, dst, d, frameCtx, core, vsapi)
+            transposeProcessCUDA(src, dst, d, frameCtx, core, vsapi);
 #endif
         } else {
             dst = vsapi->newVideoFrame(d->vi.format, d->vi.width, d->vi.height, src, core);
@@ -3127,7 +3125,7 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
-            mergeProcessCUDA(src1, src2, dst, d, MergeShift, frameCtx, core, vsapi)
+            mergeProcessCUDA(src1, src2, dst, d, MergeShift, frameCtx, core, vsapi);
 #endif
         }
         else {
@@ -3319,7 +3317,7 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
         if (fLocation == flGPU) {
 #if FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core, fLocation);
-            maskedMergeProcessCUDA(src1, src2, dst, mask, mask23, d, frameCtx, core, vsapi)
+            maskedMergeProcessCUDA(src1, src2, dst, mask, mask23, d, frameCtx, core, vsapi);
 #endif
         } else {
             dst = vsapi->newVideoFrame2(d->vi->format, d->vi->width, d->vi->height, fr, pl, src1, core);
