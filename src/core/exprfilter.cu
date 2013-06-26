@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin, Austin Dworaczyk Wiltshire
+* Copyright (c) 2012 Austin Dworaczyk Wiltshire
 *
 * This file is part of VapourSynth.
 *
