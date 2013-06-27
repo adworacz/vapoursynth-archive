@@ -124,7 +124,7 @@ union color{
 };
 
 template<typename T>
-static __global__ void blankClipKernel(uint8_t *dst, int stride, int width, int height, const int bytesPerSample, uint32_t color) {
+static __global__ void blankClipKernel(uint8_t *dstp, int stride, int width, int height, uint32_t color) {
     const int column = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
@@ -136,7 +136,7 @@ static __global__ void blankClipKernel(uint8_t *dst, int stride, int width, int 
     uint32_t dst_data = 0;
 
     for (int i = 0; i < (sizeof(uint32_t) / sizeof(T)); i++) {
-       ((T *)&dst_data)[i] = color;
+       ((T *)&dst_data)[i] = (T)color;
     }
 
     ((uint32_t *)dstp)[stride * row + column] = dst_data;
@@ -153,18 +153,17 @@ VS_EXTERN_C void VS_CC blankClipProcessCUDA(void *color, const BlankClipData *d,
         int width = vsapi->getFrameWidth(d->f, plane);
         int height = vsapi->getFrameHeight(d->f, plane);
         const VSCUDAStream *stream = vsapi->getStream(d->f, plane);
+        dim3 grid(ceil((float)width / (threads.x * (sizeof(uint32_t) / d->vi.format->bytesPerSample))), ceil((float)height / threads.y));
         switch (d->vi.format->bytesPerSample) {
         case 1:
-            CHECKCUDA(cudaMemset2DAsync(dst, stride, c,
-                vsapi->getFrameWidth(d->f, plane) * d->vi.format->bytesPerSample, vsapi->getFrameHeight(d->f, plane), stream->stream));
+            blankClipKernel<uint8_t><<<grid, threads, 0, stream->stream>>>(dst, stride, width, height, c);
             break;
         case 2:
-            dim3 grid(ceil((float)width / (threads.x * sizeof(uint32_t))), ceil((float)height / threads.y));
-            blankClipKernel<uint16_t><<<grid, threads, 0, stream->stream>>>(dst, stride, width, height, d->vi.format->bytesPerSample, c);
+            blankClipKernel<uint16_t><<<grid, threads, 0, stream->stream>>>(dst, stride, width, height, c);
             break;
-        // case 4:
-        //     vs_memset32(vsapi->getWritePtr(d.f, plane), color.i[plane], vsapi->getStride(d.f, plane) * vsapi->getFrameHeight(d.f, plane) / 4);
-        //     break;
+        case 4:
+            blankClipKernel<uint32_t><<<grid, threads, 0, stream->stream>>>(dst, stride, width, height, c);
+            break;
         }
     }
 }
