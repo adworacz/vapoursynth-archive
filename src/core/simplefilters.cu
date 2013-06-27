@@ -124,7 +124,7 @@ union color{
 };
 
 template<typename T>
-static __global__ void blankClipKernel(uint8_t dst, int stride, int width, int height, int bytesPerSample, uint32_t color) {
+static __global__ void blankClipKernel(uint8_t dst, int stride, int width, int height, const int bytesPerSample, uint32_t color) {
     const int column = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
