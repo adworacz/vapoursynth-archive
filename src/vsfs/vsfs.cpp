@@ -1,10 +1,6 @@
 // vsfs.cpp : VapourSynth Virtual File System
 //
-// VapourSynth modifications Copyright 2012 Fredrik Mellbin
-// This license header makes no sense. It was copied from
-// Avisynth and says that people who definitely never touched
-// the file claim copyright on it. Anyway, below is the complete
-// original notice, enjoy the GPL.
+// VapourSynth modifications Copyright 2012-2013 Fredrik Mellbin
 //
 // Avisynth v2.5.  Copyright 2008 Ben Rudiak-Gould et al.
 // http://www.avisynth.org
@@ -220,7 +216,7 @@ int/*error*/ VapourSynther::Import(const wchar_t* wszScriptName)
 				pad_scanlines = false;
 			vsapi->freeMap(options);
 
-			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());
+			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore(se));
 			num_threads = info->numThreads;
 
             if (vi->format->id == pfYUV422P10 && enable_v210) {
@@ -480,8 +476,10 @@ const wchar_t* VapourSynther::getError() {
 int/*error*/ VapourSynther::newEnv()
 {
     if (vi) {
-		vseval_freeScript(se);
-		se = NULL;
+        vsapi->freeNode(node);
+        node = NULL;
+        vseval_freeScript(se);
+        se = NULL;
         delete [] packedPlane1;
         delete [] packedPlane2;
     }

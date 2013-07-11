@@ -1,20 +1,20 @@
-#//  Copyright (c) 2012-2013 Fredrik Mellbin
-#//
-#//  This file is part of VapourSynth.
-#//
-#//  VapourSynth is free software; you can redistribute it and/or
-#//  modify it under the terms of the GNU Lesser General Public
-#//  License as published by the Free Software Foundation; either
-#//  version 2.1 of the License, or (at your option) any later version.
-#//
-#//  VapourSynth is distributed in the hope that it will be useful,
-#//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-#//  Lesser General Public License for more details.
-#//
-#//  You should have received a copy of the GNU Lesser General Public
-#//  License along with VapourSynth; if not, write to the Free Software
-#//  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+#  Copyright (c) 2012-2013 Fredrik Mellbin
+#
+#  This file is part of VapourSynth.
+#
+#  VapourSynth is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU Lesser General Public
+#  License as published by the Free Software Foundation; either
+#  version 2.1 of the License, or (at your option) any later version.
+#
+#  VapourSynth is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#  Lesser General Public License for more details.
+#
+#  You should have received a copy of the GNU Lesser General Public
+#  License along with VapourSynth; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 """ This is the VapourSynth module implementing the Python bindings. """
 
 cimport vapoursynth
@@ -24,9 +24,12 @@ import ctypes
 import threading
 import gc
 
-_core = None
+_using_vsscript = False
 _environment_id = None
 _stored_outputs = {}
+_cores = {}
+_stored_output = {}
+_core = None
 
 GRAY  = vapoursynth.cmGray
 RGB   = vapoursynth.cmRGB
@@ -81,22 +84,47 @@ class Error(Exception):
         return repr(self.value)
         
 def clear_output(int index = 0):
-    global _stored_outputs
-    global _environment_id
-    if _environment_id is None:
-        raise Error('Internal environment id not set. Was clear_output() called from a filter callback?')
-    # fixme, should probably catch a more specific exception
-    try:
-        del _stored_outputs[_environment_id][index]
-    except:
-        pass
+    global _using_vsscript
+    if _using_vsscript:
+        global _stored_outputs
+        global _environment_id
+        if _environment_id is None:
+            raise Error('Internal environment id not set. Was clear_output() called from a filter callback?')
+        # fixme, should probably catch a more specific exception
+        try:
+            del _stored_outputs[_environment_id][index]
+        except:
+            pass
+    else:
+        global _stored_output
+        try:
+            del _stored_output[index]
+        except:
+            pass
         
 def clear_outputs():
-    global _stored_outputs
-    global _environment_id
-    if _environment_id is None:
-        raise Error('Internal environment id not set. Was clear_outputs() called from a filter callback?')
-    _stored_outputs[_environment_id] = {}
+    global _using_vsscript
+    if _using_vsscript:
+        global _stored_outputs
+        global _environment_id
+        if _environment_id is None:
+            raise Error('Internal environment id not set. Was clear_outputs() called from a filter callback?')
+        _stored_outputs[_environment_id] = {}
+    else:
+        global _stored_output
+        _stored_output = {}
+        
+def get_output(int index = 0):
+    global _using_vsscript
+    if _using_vsscript:
+        global _stored_outputs
+        global _environment_id
+        if _environment_id is None:
+            raise Error('Internal environment id not set. Was get_output() called from a filter callback?')
+        return _stored_outputs[_environment_id][index]
+    else:
+        global _stored_output
+        return _stored_output[index]
 
 # fixme, make it possible for this to call functions not defined in python
 cdef class Func(object):
@@ -528,11 +556,17 @@ cdef class VideoNode(object):
             return createConstVideoFrame(f, self.funcs, self.core)
             
     def set_output(self, int index = 0):
-        global _stored_outputs
-        global _environment_id
-        if _environment_id is None:
-            raise Error('Internal environment id not set. Was set_output() called from a filter callback?')
-        _stored_outputs[_environment_id][index] = self
+        global _using_vsscript
+        if _using_vsscript:
+            global _stored_outputs
+            global _environment_id
+            if _environment_id is None:
+                raise Error('Internal environment id not set. Was set_output() called from a filter callback?')
+            _stored_outputs[_environment_id][index] = self
+        else:
+            global _stored_output
+            _stored_output[index] = self
+    
 
     def __add__(self, other):
         if not isinstance(other, VideoNode):
@@ -701,7 +735,7 @@ cdef class Core(object):
     def set_max_cache_size(self, int mb):
         return self.funcs.setMaxCacheSize(mb * 1024 * 1024, self.core)
             
-    def list_functions(self):
+    def get_plugins(self):
         cdef VSMap *m = self.funcs.getPlugins(self.core)
         cdef VSMap *n
         cdef bytes b
@@ -734,7 +768,19 @@ cdef class Core(object):
 
         self.funcs.freeMap(m)
         return sout
-
+        
+    def list_functions(self):
+        sout = ""
+        plugins = self.get_plugins()
+        for plugin in plugins:
+            sout += 'name: ' + plugins[plugin]['name'] + '\n'
+            sout += 'namespace: ' + plugins[plugin]['namespace'] + '\n'
+            sout += 'identifier: ' + plugins[plugin]['identifier'] + '\n'
+            for function in plugins[plugin]['functions']:
+                line = '\t' + function + '(' + plugins[plugin]['functions'][function].replace(';', '; ') + ')\n'
+                sout += line.replace('; )', ')')
+        return sout
+        
     def register_format(self, int color_family, int sample_type, int bits_per_sample, int subsampling_w, int subsampling_h):
         return createFormat(self.funcs.registerFormat(color_family, sample_type, bits_per_sample, subsampling_w, subsampling_h, self.core))
 
@@ -771,10 +817,27 @@ cdef Core createCore(int threads = 0, bint add_cache = True, bint accept_lowerca
     return instance
         
 def get_core(int threads = 0, bint add_cache = True, bint accept_lowercase = False):
-    global _core
-    if _core is None:
-        _core = createCore(threads, add_cache, accept_lowercase)
-    return _core
+    global _using_vsscript
+    if _using_vsscript:
+        global _cores
+        global _environment_id
+        if _environment_id is None:
+            raise Error('Internal environment id not set. Was get_core() called from a filter callback?')
+
+        if not _environment_id in _cores:
+            _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
+        return _cores[_environment_id]
+    else:
+        global _core
+        if _core is None:
+            _core = createCore(threads, add_cache, accept_lowercase)
+        return _core
+    
+cdef get_core_internal(int _environment_id, int threads = 0, bint add_cache = True, bint accept_lowercase = False):
+    global _cores
+    if not _environment_id in _cores:
+        _cores[_environment_id] = createCore(threads, add_cache, accept_lowercase)
+    return _cores[_environment_id]
 
 cdef class Plugin(object):
     cdef Core core
@@ -812,7 +875,7 @@ cdef class Plugin(object):
             self.funcs.freeMap(m)
             raise Error('There is no function named ' + name)
 
-    def list_functions(self):
+    def get_functions(self):
         cdef VSMap *n
         cdef bytes b
         cdef dict sout = {}
@@ -827,6 +890,13 @@ cdef class Plugin(object):
             
         self.funcs.freeMap(n)
         return sout
+        
+    def list_functions(self):
+        sout = ""
+        functions = self.get_functions()
+        for key in functions:
+            sout += key + '(' + functions[key].replace(';', '; ') + ')\n'
+        return sout.replace('; )', ')')
 
 cdef Plugin createPlugin(VSPlugin *plugin, const VSAPI *funcs, Core core):
     cdef Plugin instance = Plugin.__new__(Plugin)    
@@ -1000,6 +1070,13 @@ cdef public api void vpy_freeScript(VPYScriptExport *se) nogil:
             se.errstr = NULL
             Py_DECREF(errstr)
             errstr = None
+            
+        try:
+            global _cores
+            del _cores[se.id]
+        except:
+            pass
+            
         gc.collect()
 
 cdef public api char *vpy_getError(VPYScriptExport *se) nogil:
@@ -1020,7 +1097,7 @@ cdef public api VSNodeRef *vpy_getOutput(VPYScriptExport *se, int index) nogil:
             return NULL
 
         if isinstance(node, VideoNode):
-            return (<VideoNode>node).node
+            return (<VideoNode>node).funcs.cloneNodeRef((<VideoNode>node).node)
         else:
             return NULL
     
@@ -1032,10 +1109,10 @@ cdef public api void vpy_clearOutput(VPYScriptExport *se, int index) nogil:
         except:
             pass
 
-cdef public api VSCore *vpy_getCore() nogil:
+cdef public api VSCore *vpy_getCore(VPYScriptExport *se) nogil:
     with gil:
         try:
-            core = get_core()
+            core = get_core_internal(se.id)
             return (<Core>core).core
         except:
             return NULL
@@ -1046,11 +1123,11 @@ cdef public api const VSAPI *vpy_getVSApi() nogil:
 cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap *dst) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
-        core = get_core()
+        core = get_core_internal(se.id)
         try:
             dname = name.decode('utf-8')
             read_var = { dname:evaldict[dname]}
-            dictToMap(read_var, dst, get_core(), (<Core>core).funcs)
+            dictToMap(read_var, dst, core, (<Core>core).funcs)
             return 0
         except:
             return 1
@@ -1058,8 +1135,8 @@ cdef public api int vpy_getVariable(VPYScriptExport *se, const char *name, VSMap
 cdef public api void vpy_setVariable(VPYScriptExport *se, const VSMap *vars) nogil:
     with gil:
         evaldict = <dict>se.pyenvdict
-        core = get_core()
-        new_vars = mapToDict(vars, False, False, get_core(), (<Core>core).funcs)
+        core = get_core_internal(se.id)
+        new_vars = mapToDict(vars, False, False, core, (<Core>core).funcs)
         for key in new_vars:
             evaldict[key] = new_vars[key]
 
@@ -1083,3 +1160,9 @@ cdef public api void vpy_clearEnvironment(VPYScriptExport *se) nogil:
         except:
             pass
         gc.collect()
+
+cdef public api void vpy_initVSScript() nogil:
+    with gil:
+        global _using_vsscript
+        _using_vsscript = True
+    

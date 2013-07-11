@@ -20,8 +20,11 @@
 
 #include "vscore.h"
 #include "VSHelper.h"
-#include "x86utils.h"
 #include "version.h"
+
+#ifdef VS_TARGET_CPU_X86
+#include "x86utils.h"
+#endif
 
 // Filter headers
 extern "C" {
@@ -76,7 +79,6 @@ VSFrameData::~VSFrameData() {
     vs_aligned_free(data);
     mem->subtract(size);
 }
-#endif
 
 ///////////////
 
@@ -287,7 +289,7 @@ void VSNode::getFrame(const PFrameContext &ct) {
 PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameContext &frameCtx) {
     const VSFrameRef *r = filterGetFrame(n, activationReason, &instanceData, &frameCtx->frameContext, (VSFrameContext *)&frameCtx, core, &vsapi);
 // This stuff really only works properly on windows, feel free to investigate what the linux ABI thinks about it
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
     if (!vs_isMMXStateOk())
         qFatal("Bad MMX state detected after return from %s", name.constData());
     if (!hasWarnedFPU && !vs_isFPUStateOk()) {
@@ -443,7 +445,7 @@ void VS_CC loadPluginInitialize(VSConfigPlugin configFunc, VSRegisterFunction re
 }
 
 // fixme, not the most elegant way but avoids the mess that would happen if avscompat.h was included
-#ifdef _WIN32
+#if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
 extern "C" void VS_CC avsWrapperInitialize(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin);
 #endif
 
@@ -493,7 +495,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), gpuMemory(new MemoryUse()
     // The internal plugin units, the loading is a bit special so they can get special flags
     VSPlugin *p;
 
-#ifdef _WIN32
+#if defined(VS_TARGET_OS_WINDOWS) && defined(VS_FEATURE_AVISYNTH)
     p = new VSPlugin(this);
     avsWrapperInitialize(::configPlugin, ::registerFunction, p);
     plugins.insert(p->identifier, p);
@@ -603,7 +605,7 @@ VSPlugin::VSPlugin(VSCore *core)
 
 VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace, VSCore *core)
     : apiVersion(0), hasConfig(false), readOnly(false), compat(false), libHandle(0), filename(filename), core(core), fnamespace(forcedNamespace) {
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
     QString uStr = QString::fromUtf8(filename.constData(), filename.size());
     QStdWString wStr(uStr.toStdWString());
     libHandle = LoadLibraryW(wStr.data());
@@ -649,7 +651,7 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
         readOnly = true;
 
     if (apiVersion != VAPOURSYNTH_API_VERSION && apiVersion != 2) {
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
         FreeLibrary(libHandle);
 #else
         dlclose(libHandle);
@@ -662,7 +664,7 @@ VSPlugin::VSPlugin(const QByteArray &filename, const QByteArray &forcedNamespace
 }
 
 VSPlugin::~VSPlugin() {
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
     if (libHandle)
         FreeLibrary(libHandle);
 #else

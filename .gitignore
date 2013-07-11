@@ -1,10 +1,9 @@
 #Ignore Waf build stuff
 /build
 /doc/_build
-/.lock-*
-/.waf-*
-/.waf3-*
-/waf
+.lock-*
+.waf*
+waf
 
 
 #Ignore python compile files

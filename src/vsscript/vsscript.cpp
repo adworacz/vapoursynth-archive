@@ -1,19 +1,25 @@
 #include "VSScript.h"
-#include "vapoursynth_api.h"
+#include "cython/vapoursynth_api.h"
 
 struct VSScript : public VPYScriptExport {
 };
 
+int preInitialized = 0;
 int initializationCount = 0;
 int scriptId = 1000;
 PyThreadState *ts = NULL;
+PyGILState_STATE s;
 
 VS_API(int) vseval_init(void) {
 	if (initializationCount == 0) {
-		Py_Initialize();
+		preInitialized = Py_IsInitialized();
+		if (!preInitialized)
+			Py_InitializeEx(0);
+		PyGILState_STATE s = PyGILState_Ensure();
 		int result = import_vapoursynth();
 		if (result)
 			return 0;
+		vpy_initVSScript();
 		ts = PyEval_SaveThread();
 	}
 	initializationCount++;
@@ -24,8 +30,10 @@ VS_API(int) vseval_finalize(void) {
 	initializationCount--;
     if (initializationCount)
         return initializationCount;
-	PyEval_RestoreThread(ts);
-    Py_Finalize();
+	//PyEval_RestoreThread(ts);
+	//PyGILState_Release(s);
+	//if (!preInitialized)
+	//	Py_Finalize();
     return 0;
 }
 
@@ -58,8 +66,8 @@ VS_API(void) vseval_clearOutput(VSScript *handle, int index) {
 	vpy_clearOutput(handle, index);
 }
 
-VS_API(VSCore *) vseval_getCore(void) {
-    return vpy_getCore();
+VS_API(VSCore *) vseval_getCore(VSScript *handle) {
+    return vpy_getCore(handle);
 }
 
 VS_API(const VSAPI *) vseval_getVSApi(void) {

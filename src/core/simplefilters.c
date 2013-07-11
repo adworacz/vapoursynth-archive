@@ -323,6 +323,8 @@ static const VSFrameRef *VS_CC addBordersGetframe(int n, int activationReason, v
     if (activationReason == arInitial) {
         vsapi->requestFrameFilter(n, d->node, frameCtx);
     } else if (activationReason == arAllFramesReady) {
+        int plane;
+        int hloop;
         const VSFrameRef *src = vsapi->getFrameFilter(n, d->node, frameCtx);
         const VSFormat *fi = vsapi->getFrameFormat(src);
         VSFrameRef *dst;
@@ -439,6 +441,10 @@ static void VS_CC addBordersCreate(const VSMap *in, VSMap *out, void *userData, 
     }
 
 	ncolors = vsapi->propNumElements(in, "color");
+
+	for (i = 0; i < 3; i++) {
+		d.color.i[i] = 0;
+	}
 
     if (ncolors == d.vi->format->numPlanes) {
         for (i = 0; i < ncolors; i++) {
@@ -2463,10 +2469,12 @@ static void VS_CC modifyFrameCreate(const VSMap *in, VSMap *out, void *userData,
 //////////////////////////////////////////
 // Transpose
 
+#ifdef VS_TARGET_CPU_X86
 extern void vs_transpose_word(const uint8_t *src, int srcstride, uint8_t *dst, int dststride);
 extern void vs_transpose_word_partial(const uint8_t *src, int srcstride, uint8_t *dst, int dststride, int dst_lines);
 extern void vs_transpose_byte(const uint8_t *src, int srcstride, uint8_t *dst, int dststride);
 extern void vs_transpose_byte_partial(const uint8_t *src, int srcstride, uint8_t *dst, int dststride, int dst_lines);
+#endif
 
 typedef struct {
     VSNodeRef *node;
@@ -2520,7 +2528,7 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
 
                 switch (d->vi.format->bytesPerSample) {
                 case 1:
-#if 1 // x86-4ever
+#ifdef VS_TARGET_CPU_X86
                     modwidth = width & ~7;
                     modheight = height & ~7;
 
@@ -2546,7 +2554,7 @@ static const VSFrameRef *VS_CC transposeGetFrame(int n, int activationReason, vo
                     break;
 #endif
                 case 2:
-#if 1 // x86-4ever
+#ifdef VS_TARGET_CPU_X86
                     modwidth = width & ~3;
                     modheight = height & ~3;
 
@@ -3179,7 +3187,6 @@ static const VSFrameRef *VS_CC mergeGetFrame(int n, int activationReason, void *
             }
         }
 
-
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);
         return dst;
@@ -3370,7 +3377,6 @@ static const VSFrameRef *VS_CC maskedMergeGetFrame(int n, int activationReason, 
                 }
             }
         }
-
 
         vsapi->freeFrame(src1);
         vsapi->freeFrame(src2);

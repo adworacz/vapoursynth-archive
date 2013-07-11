@@ -23,10 +23,12 @@
 #include <QtCore/QWaitCondition>
 #include <QtCore/QFile>
 #include <QtCore/QMap>
+#define __STDC_FORMAT_MACROS
+#include <inttypes.h>
 #include "VSScript.h"
 #include "VSHelper.h"
 
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
 static inline QString nativeToQString(const wchar_t *str) {
 	return QString::fromWCharArray(str);
 }
@@ -118,7 +120,7 @@ void VS_CC frameDoneCallback(void *userData, const VSFrameRef *f, int n, VSNodeR
 
 bool outputNode() {
     if (requests < 1) {
-		const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());
+		const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore(se));
         requests = info->numThreads;
 	}
 
@@ -207,7 +209,7 @@ const char *colorFamilyToString(int colorFamily) {
 }
 
 // fixme, only allow info without output
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
 int wmain(int argc, wchar_t **argv) {
 #else
 int main(int argc, char **argv) {
@@ -248,7 +250,7 @@ int main(int argc, char **argv) {
 	if (outputFilename == "-") {
 		outFile = stdout;
 	} else {
-#ifdef _WIN32
+#ifdef VS_TARGET_OS_WINDOWS
 		outFile = _wfopen(outputFilename.toStdWString().c_str(), L"wb");
 #else
 		outFile = fopen(outputFilename.toLocal8Bit(), "wb");
@@ -331,7 +333,8 @@ int main(int argc, char **argv) {
 		fprintf(outFile, "Width: %d\n", vi->width);
 		fprintf(outFile, "Height: %d\n", vi->height);
 		fprintf(outFile, "Frames: %d\n", vi->numFrames);
-		fprintf(outFile, "FPS: %d/%d\n", vi->fpsNum, vi->fpsDen);
+		fprintf(outFile, "FPS: %" PRId64 "/%" PRId64 "\n", vi->fpsNum, vi->fpsDen);
+
 		if (vi->format) {
 			fprintf(outFile, "Format Name: %s\n", vi->format->name);
 			fprintf(outFile, "Color Family: %s\n", colorFamilyToString(vi->format->colorFamily));
@@ -344,6 +347,7 @@ int main(int argc, char **argv) {
 	} else {
 		if (!isConstantFormat(vi) || vi->numFrames == 0) {
 			fprintf(stderr, "Cannot output clips with varying dimensions or unknown length\n");
+			vsapi->freeNode(node);
 			vseval_freeScript(se);
 			vseval_finalize();
 			return 1;
@@ -353,7 +357,7 @@ int main(int argc, char **argv) {
 	}
 
 	fflush(outFile);
-
+    vsapi->freeNode(node);
     vseval_freeScript(se);
     vseval_finalize();
 

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2012 Fredrik Mellbin
+* Copyright (c) 2012-2013 Fredrik Mellbin
 *
 * This file is part of VapourSynth.
 *
@@ -404,9 +404,10 @@ VapourSynthFile::VapourSynthFile(const CLSID& rclsid) : num_threads(1), node(NUL
 VapourSynthFile::~VapourSynthFile() {
     Lock();
     if (vi) {
+        while (pending_requests > 0) {};
         vi = NULL;
-		while (pending_requests > 0) {};
-		vseval_freeScript(se);
+        vsapi->freeNode(node);
+        vseval_freeScript(se);
     }
     Unlock();
     DeleteCriticalSection(&cs_filter_graph);
@@ -534,7 +535,7 @@ bool VapourSynthFile::DelayInit2() {
 				pad_scanlines = false;
 			vsapi->freeMap(options);
 
-			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore());
+			const VSCoreInfo *info = vsapi->getCoreInfo(vseval_getCore(se));
 			num_threads = info->numThreads;
 
             return true;

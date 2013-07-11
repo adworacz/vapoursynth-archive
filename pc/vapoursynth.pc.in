@@ -1,0 +1,12 @@
+prefix=@PREFIX@
+libdir=@LIBDIR@
+includedir=@INCLUDEDIR@
+
+Name: VapourSynth
+Description: A frameserver for the 21st century
+Version: @VERSION@
+
+Requires.private: libavutil, libswscale, QtCore
+Libs: -L${libdir} -lvapoursynth
+Libs.private: @LIBS@
+Cflags: -I${includedir}

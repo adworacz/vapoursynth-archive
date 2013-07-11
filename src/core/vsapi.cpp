@@ -424,7 +424,6 @@ static int VS_CC propSetFrame(VSMap *props, const char *name, const VSFrameRef *
     return 0;
 }
 
-
 static VSMap *VS_CC invoke(VSPlugin *plugin, const char *name, const VSMap *args) {
     Q_ASSERT(plugin);
     return new VSMap(plugin->invoke(name, *args));
