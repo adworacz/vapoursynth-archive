@@ -553,7 +553,7 @@ static void VS_CC setMessageHandler(VSMessageHandler handler) {
     }
 }
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
 static VSFrameRef *VS_CC newVideoFrameAtLocation(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation) {
     Q_ASSERT(format);
     return new VSFrameRef(core->newVideoFrame(format, width, height, propSrc ? propSrc->frame.data() : NULL, fLocation));
@@ -655,7 +655,7 @@ const VSAPI vsapi = {
 
     &getFrameLocation,
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     &newVideoFrameAtLocation,
     &newVideoFrameAtLocation2,
     &transferVideoFrame,

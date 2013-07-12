@@ -64,7 +64,7 @@ VSFrameData::VSFrameData(quint32 size, MemoryUse *mem) : QSharedData(), mem(mem)
     mem->add(size);
 }
 
-#if !FEATURE_CUDA
+#if !VS_FEATURE_CUDA
 VSFrameData::VSFrameData(const VSFrameData &d) : QSharedData(d) {
     size = d.size;
     mem = d.mem;
@@ -79,6 +79,7 @@ VSFrameData::~VSFrameData() {
     vs_aligned_free(data);
     mem->subtract(size);
 }
+#endif
 
 ///////////////
 
@@ -320,7 +321,7 @@ PVideoFrame VSNode::getFrameInternal(int n, int activationReason, const PFrameCo
     return p;
 }
 
-void VSNode::reserveThread() { 
+void VSNode::reserveThread() {
 	core->threadPool->reserveThread();
 }
 
@@ -517,7 +518,7 @@ VSCore::VSCore(int threads) : memory(new MemoryUse()), gpuMemory(new MemoryUse()
     plugins.insert(p->identifier, p);
     p->enableCompat();
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     gpuManager = new VSGPUManager();
 #endif
 }
@@ -531,7 +532,7 @@ VSCore::~VSCore() {
     foreach(VSFormat * f, formats)
         delete f;
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     delete gpuManager;
 #endif
 }
@@ -593,7 +594,7 @@ void VSCore::createFilter(const VSMap *in, VSMap *out, const QByteArray &name, V
 }
 
 int64_t VSCore::setMaxCacheSize(int64_t bytes) {
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     gpuMemory->setMaxMemoryUse(bytes);
 #endif
     return memory->setMaxMemoryUse(bytes);

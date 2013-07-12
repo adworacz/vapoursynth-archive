@@ -63,7 +63,7 @@ typedef struct VSMap VSMap;
 typedef struct VSAPI VSAPI;
 typedef struct VSFrameContext VSFrameContext;
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     typedef struct VSCUDAStream VSCUDAStream;
 #endif
 
@@ -249,7 +249,7 @@ typedef uint8_t *(VS_CC *VSGetWritePtr)(VSFrameRef *f, int plane);
 
 typedef FrameLocation (VS_CC *VSGetFrameLocation)(const VSFrameRef *f);
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation)(const VSFormat *format, int width, int height, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef VSFrameRef *(VS_CC *VSNewVideoFrameAtLocation2)(const VSFormat *format, int width, int height, const VSFrameRef **planeSrc, const int *planes, const VSFrameRef *propSrc, VSCore *core, FrameLocation fLocation);
 typedef void (VS_CC *VSTransferVideoFrame)(const VSFrameRef *srcFrame, VSFrameRef *dstFrame, FrameTransferDirection direction, VSCore *core);
@@ -395,7 +395,7 @@ struct VSAPI {
 
     VSGetFrameLocation getFrameLocation;
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     VSNewVideoFrameAtLocation newVideoFrameAtLocation;
     VSNewVideoFrameAtLocation2 newVideoFrameAtLocation2;
     VSTransferVideoFrame transferVideoFrame;

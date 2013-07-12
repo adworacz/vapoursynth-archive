@@ -265,7 +265,7 @@ void VSThreadPool::startInternal(const PFrameContext &context) {
         notifyCaches(cNeedMemory);
     }
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     //Not sure on how the caching functionality works, so this
     //may be able to be optimized for two separate memory spaces.
     if (core->gpuMemory->isOverLimit()) {

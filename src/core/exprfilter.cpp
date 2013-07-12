@@ -89,7 +89,7 @@ enum PlaneOp {
 typedef struct {
     VSNodeRef *node[3];
     VSVideoInfo vi;
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     ExprOp *gpu_ops[3];
 #endif
     std::vector<ExprOp> ops[3];
@@ -103,7 +103,7 @@ typedef struct {
 
 extern "C" void vs_evaluate_expr_sse2(const void *exprs, const uint8_t **rwptrs, const intptr_t *ptroffsets, int numiterations, void *stack);
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
 extern void VS_CC exprProcessCUDA(const VSFrameRef **src, VSFrameRef *dst, const JitExprData *d,
                                        VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi);
 extern ExprOp * VS_CC copyExprOps(const ExprOp *vops, int numOps);
@@ -139,7 +139,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
         VSFrameRef *dst;
 
         if (fLocation == flGPU) {
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
             dst = vsapi->newVideoFrameAtLocation2(fi, width, height, srcf, planes, src[0], core, flGPU);
             exprProcessCUDA(src, dst, d, frameCtx, core, vsapi);
 #endif
@@ -353,7 +353,7 @@ static const VSFrameRef *VS_CC exprGetFrame(int n, int activationReason, void **
 
 static void VS_CC exprFree(void *instanceData, VSCore *core, const VSAPI *vsapi) {
     JitExprData *d = (JitExprData *)instanceData;
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     for (int i = 0; i < d->vi.format->numPlanes; i++) {
         freeExprOps(&d->gpu_ops[i][0]);
     }
@@ -547,7 +547,7 @@ static void VS_CC exprCreate(const VSMap *in, VSMap *out, void *userData, VSCore
         int maxStackSize = 0;
         for (int i = 0; i < d.vi.format->numPlanes; i++) {
             maxStackSize = std::max(parseExpression(expr[i], d.ops[i], sop, getStoreOp(&d.vi)), maxStackSize);
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
             d.gpu_ops[i] = copyExprOps(&d.ops[i][0], d.ops[i].size());
 #endif
         }

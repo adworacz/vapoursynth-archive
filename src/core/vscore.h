@@ -33,7 +33,7 @@
 #	include <dlfcn.h>
 #endif
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     #include "vsgpumanager.h"
 #endif
 
@@ -227,7 +227,7 @@ public:
     VSFrameData(const VSFrameData &d);
     ~VSFrameData();
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     VSFrameData(int width, int height, int *stride, int bytesPerSample, MemoryUse *mem, FrameLocation fLocation, const VSCUDAStream *stream);
     void transferData(VSFrameData *dst, int dstStride, int srcStride, int width, int height, int bytesPerSample, FrameTransferDirection direction) const;
     const VSCUDAStream *stream;
@@ -251,7 +251,7 @@ public:
     VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core);
     VSFrame(const VSFrame &f);
 
-#ifdef FEATURE_CUDA
+#ifdef VS_FEATURE_CUDA
     VSFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation, const VSCUDAStream **streams);
     VSFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *plane, const VSFrame *propSrc, VSCore *core, FrameLocation fLocation, const VSCUDAStream **streams);
     void transferFrame(VSFrame &dstFrame, FrameTransferDirection direction) const;
@@ -493,7 +493,7 @@ public:
     PVideoFrame copyFrame(const PVideoFrame &srcf);
     void copyFrameProps(const PVideoFrame &src, PVideoFrame &dst);
 
-#if FEATURE_CUDA
+#if VS_FEATURE_CUDA
     VSGPUManager *gpuManager;
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame *propSrc, FrameLocation fLocation);
     PVideoFrame newVideoFrame(const VSFormat *f, int width, int height, const VSFrame * const *planeSrc, const int *planes, const VSFrame *propSrc, FrameLocation fLocation);
