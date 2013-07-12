@@ -40,6 +40,7 @@ Container& split(
     split1::empties_t empties = split1::empties_ok)
 {
     result.clear();
+    size_t current;
     size_t next = -1;
     do {
         if (empties == split1::no_empties) {
