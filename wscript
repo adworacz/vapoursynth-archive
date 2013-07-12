@@ -91,7 +91,7 @@ def options(opt):
 
     opt.add_option('--filters', action = 'store', default = 'true', help = 'build included filters (true/false)')
     opt.add_option('--examples', action = 'store', default = 'false', help = 'install SDK examples (true/false)')
-    opt.add_option('--cuda', action = 'store', default = 'true', help = 'build with CUDA enhancments (true/false)')
+    opt.add_option('--cuda', action = 'store', default = 'true', help = 'build with CUDA enhancements (true/false)')
 
     opt.add_option('--docs', action = 'store', default = 'false', help = 'build the documentation (true/false)')
 
@@ -286,6 +286,10 @@ def configure(conf):
         else:
             add_options(['ASFLAGS'],
                         ['-Wa,-g'])
+
+        if conf.options.cuda == 'true':
+                    add_options(['NVCC_CXXFLAGS'], ['-g', '-G'])
+
     elif conf.options.mode == 'release':
         if conf.env.CXX_NAME == 'gcc':
             add_options(['CFLAGS', 'CXXFLAGS'],
