@@ -70,10 +70,10 @@ class CoreTestSequence(unittest.TestCase):
 
         luty = []
         for x in range(2 ** clip.format.bits_per_sample):
-            luty.append(max(min(x, 800), 16))
+            luty.append(max(min(x, 800), 300))
         lutuv = []
         for x in range(2 ** clip.format.bits_per_sample):
-            lutuv.append(max(min(x, 200), 16))
+            lutuv.append(max(min(x, 800), 300))
 
         cpu = self.core.std.Lut(clip=clip, lut=luty, planes=0)
         cpu = self.core.std.Lut(clip=cpu, lut=lutuv, planes=[1, 2])
