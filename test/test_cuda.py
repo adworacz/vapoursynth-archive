@@ -65,6 +65,26 @@ class CoreTestSequence(unittest.TestCase):
 
         self.checkDifference(cpu, gpu)
 
+    def testLutDifference16bit(self):
+        clip = self.core.std.BlankClip(format=vs.YUV420P10, color=[300, 700, 900])
+
+        luty = []
+        for x in range(2 ** clip.format.bits_per_sample):
+            luty.append(max(min(x, 800), 16))
+        lutuv = []
+        for x in range(2 ** clip.format.bits_per_sample):
+            lutuv.append(max(min(x, 200), 16))
+
+        cpu = self.core.std.Lut(clip=clip, lut=luty, planes=0)
+        cpu = self.core.std.Lut(clip=cpu, lut=lutuv, planes=[1, 2])
+
+        clip = self.core.std.TransferFrame(clip, 1)
+        gpu = self.core.std.Lut(clip=clip, lut=luty, planes=0)
+        gpu = self.core.std.Lut(clip=gpu, lut=lutuv, planes=[1, 2])
+        gpu = self.core.std.TransferFrame(gpu, 0)
+
+        self.checkDifference(cpu, gpu)
+
     def testTransposeDifference(self):
         cpu = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115])
         gpu = self.core.std.BlankClip(format=vs.YUV420P8, color=[69, 242, 115], gpu=1)

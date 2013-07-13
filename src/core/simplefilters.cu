@@ -180,9 +180,10 @@ typedef struct {
 } LutData;
 
 //Each thread perfoms a LUT on a block of 32 / 8 = 4 pixels.
-static __global__ void lutKernel8(const uint8_t * __restrict__ srcp, uint8_t * __restrict__ dstp,
+template<typename T>
+static __global__ void lutKernel(const uint8_t * __restrict__ srcp, uint8_t * __restrict__ dstp,
                                   int stride, const int width, const int height,
-                                  const uint8_t * __restrict__ lut){
+                                  const T * __restrict__ lut){
     const int column = blockDim.x * blockIdx.x + threadIdx.x;
     const int row = blockDim.y * blockIdx.y + threadIdx.y;
 
@@ -194,9 +195,8 @@ static __global__ void lutKernel8(const uint8_t * __restrict__ srcp, uint8_t * _
     uint32_t src_data = ((uint32_t *)srcp)[stride * row + column];
     uint32_t dst_data = 0;
 
-    #pragma unroll 4
-    for (int i = 0; i < sizeof(uint32_t); i++) {
-       ((uint8_t *)&dst_data)[i] = lut[((uint8_t *)&src_data)[i]];
+    for (int i = 0; i < (sizeof(uint32_t) / sizeof(T)); i++) {
+       ((T *)&dst_data)[i] = lut[((T *)&src_data)[i]];
     }
 
     ((uint32_t *)dstp)[stride * row + column] = dst_data;
@@ -209,8 +209,8 @@ VS_EXTERN_C void VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, co
 
     uint8_t *d_lut;
     int numElements = (1 << d->vi->format->bitsPerSample);
-    CHECKCUDA(cudaMalloc(&d_lut, numElements * sizeof(uint8_t)));
-    CHECKCUDA(cudaMemcpy(d_lut, d->lut, numElements, cudaMemcpyHostToDevice));
+    CHECKCUDA(cudaMalloc(&d_lut, numElements * d->vi->format->bytesPerSample));
+    CHECKCUDA(cudaMemcpy(d_lut, d->lut, numElements * d->vi->format->bytesPerSample, cudaMemcpyHostToDevice));
 
     for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
         const uint8_t *srcp = vsapi->getReadPtr(src, plane);
@@ -221,21 +221,12 @@ VS_EXTERN_C void VS_CC lutProcessCUDA(const VSFrameRef *src, VSFrameRef *dst, co
         if (d->process[plane]) {
             int w = vsapi->getFrameWidth(src, plane);
             const VSCUDAStream *stream = vsapi->getStream(dst, plane);
+            dim3 grid(ceil((float)w / (threads.x * (sizeof(uint32_t) / d->vi->format->bytesPerSample))), ceil((float)h / threads.y));
 
             if (d->vi->format->bytesPerSample == 1) {
-                dim3 grid(ceil((float)w / (threads.x * sizeof(uint32_t))), ceil((float)h / threads.y));
-
-                lutKernel8<<<grid, threads, 0, stream->stream>>>(srcp, dstp, dst_stride, w, h, d_lut);
+                lutKernel<uint8_t><<<grid, threads, 0, stream->stream>>>(srcp, dstp, dst_stride, w, h, d_lut);
             } else {
-                // const uint16_t *lut = (uint16_t *)d->lut;
-
-                // for (hl = 0; hl < h; hl++) {
-                //     for (x = 0; x < w; x++)
-                //         ((uint16_t *)dstp)[x] =  lut[srcp[x]];
-
-                //     dstp += dst_stride;
-                //     srcp += src_stride;
-                // }
+                lutKernel<uint16_t><<<grid, threads, 0, stream->stream>>>(srcp, dstp, dst_stride, w, h, (uint16_t *)d_lut);
             }
         }
     }
